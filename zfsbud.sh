@@ -17,7 +17,7 @@ for arg in "$@"; do
     remove_old=1
     shift
     ;;
-  -i | --initial-send)
+  -i | --initial)
     initial=1
     shift
     ;;
