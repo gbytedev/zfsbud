@@ -9,7 +9,7 @@ log_file="$HOME/.zfsbud"
 
 for arg in "$@"; do
   case $arg in
-  -c | --create)
+  -c | --create-snapshot)
     create=1
     shift
     ;;
@@ -80,14 +80,14 @@ done
 
 if [ -v log ]; then
   if ! (touch "$log_file"); then
-    echo "ERROR: Unable to create log file $log_file."
+    echo "ERROR: Unable to create log file '$log_file'."
     exit 1
   fi
   exec > >(tee "$log_file") 2>&1
 fi
 
 if [ ! -v create ] && [ ! -v remove_old ] && [ ! -v send ]; then
-  echo "ERROR: Specify the operation by adding a --create|-c, --remove-old|-r, and/or --send|-s flag(s)."
+  echo "ERROR: Specify the operation by adding a --create-snapshot|-c, --remove-old|-r, and/or --send|-s flag(s)."
   exit 1
 fi
 
@@ -109,8 +109,8 @@ for dataset in "${datasets[@]}"; do
     exit 1
   fi
 
-  if ! zfs list -H -o name | grep -q "$dataset"; then
-    echo "ERROR: Source dataset $dataset does not exists."
+  if ! zfs list -H -o name | grep -qx "$dataset"; then
+    echo "ERROR: Source dataset '$dataset' does not exists."
     exit 1
   fi
 
@@ -118,8 +118,8 @@ for dataset in "${datasets[@]}"; do
     dataset_name=${dataset#*/}
 
     if [ -v remote_shell ]; then
-      if ! $remote_shell "zfs list -H -o name" | grep -q "$destination_pool/$dataset_name"; then
-        echo "ERROR: Remote destination dataset $destination_pool/$dataset_name does not exists."
+      if [ ! -v initial ] && ! $remote_shell "zfs list -H -o name" | grep -qx "$destination_pool/$dataset_name"; then
+        echo "ERROR: Remote destination dataset '$destination_pool/$dataset_name' does not exists. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
         exit 1
       fi
     else
@@ -128,8 +128,8 @@ for dataset in "${datasets[@]}"; do
         exit 1
       fi
 
-      if ! zfs list -H -o name | grep -q "$destination_pool/$dataset_name"; then
-        echo "ERROR: Local destination dataset $destination_pool/$dataset_name does not exists."
+      if [ ! -v initial ] && ! zfs list -H -o name | grep -qx "$destination_pool/$dataset_name"; then
+        echo "ERROR: Local destination dataset '$destination_pool/$dataset_name' does not exists. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
         exit 1
       fi
     fi
@@ -147,6 +147,9 @@ fi
 if [ -v log ] && [ -v verbose ] && [ -v initial ]; then
   echo "WARNING: Verbose logging during the initial send may produce big log files. Consider omitting the --log|-l and --log-path|-L flags or the --verbose|-v flag."
 fi
+
+# todo Test for unmounted source if initial send.
+# todo Test for snapshots for initial send.
 
 if [ -v remove_old ]; then
   # Get timestamps of 8 daily, 5 weekly (every sunday), 13 monthly (first sunday of every month) and 6 yearly (first sunday of every year) snapshots to be kept
@@ -172,7 +175,7 @@ for dataset in "${datasets[@]}"; do
   dataset_name=${dataset#*/}
   source_pool=${dataset%/*}
 
-  source_snapshots=($(zfs list -H -o name -t snapshot | grep "$source_pool/$dataset_name@$snapshot_prefix"))
+  source_snapshots=($(zfs list -H -o name -t snapshot | grep -qx "$source_pool/$dataset_name@$snapshot_prefix"))
 
   # Create a new source snapshot.
   if [ -v create ]; then
@@ -180,7 +183,7 @@ for dataset in "${datasets[@]}"; do
     echo "Creating source snapshot: $new_snapshot"
     if [ ! -v dry_run ]; then
       if ! (zfs snapshot "$new_snapshot"); then
-        echo "Snapshot $new_snapshot could not be created on source dataset $dataset."
+        echo "Snapshot '$new_snapshot' could not be created on source dataset '$dataset'."
         continue
       fi
     fi
@@ -204,11 +207,11 @@ for dataset in "${datasets[@]}"; do
   if [ -v send ]; then
     if ((${#source_snapshots[@]} >= 1)); then
       last_snapshot_source=${source_snapshots[-1]}
-      echo "Last source snapshot: $last_snapshot_source"
+      echo "Most recent source snapshot: $last_snapshot_source"
     else
       echo "No source snapshots of dataset $dataset_name found."
       if [ ! -v create ]; then
-        echo "Use the --create|-c flag to create a snapshot."
+        echo "Use the --create-snapshot|-c flag to create a snapshot."
       fi
       continue
     fi
@@ -217,24 +220,25 @@ for dataset in "${datasets[@]}"; do
     if [ -v initial ]; then
       # Get name of first source snapshot.
       first_snapshot_source=${source_snapshots[0]}
-      echo "First source snapshot: $first_snapshot_source"
+      echo "Initial source snapshot: $first_snapshot_source"
 
       # Send first source snapshot to destination.
-      echo "Sending first snapshot to destination..."
+      echo "Sending initial snapshot to destination..."
       if [ ! -v dry_run ]; then
         if [ -v remote_shell ]; then
-          zfs send -w$verbose "$first_snapshot_source" | $remote_shell "zfs recv -F $destination_pool/$dataset_name"
+          zfs send -w$verbose "$first_snapshot_source" | $remote_shell "zfs recv -Fu $destination_pool/$dataset_name"
         else
-          zfs send -w$verbose "$first_snapshot_source" | zfs recv -F "$destination_pool/$dataset_name"
+          zfs send -w$verbose "$first_snapshot_source" | zfs recv -Fu "$destination_pool/$dataset_name"
         fi
       fi
+      echo "Initial snapshot has been sent."
     fi
 
-    # Consecutive send.
+    # Incremental send.
     if [ -v remote_shell ]; then
-      destination_snapshots=($($remote_shell "zfs list -H -o name -t snapshot | grep $destination_pool/$dataset_name@$snapshot_prefix"))
+      destination_snapshots=($($remote_shell "zfs list -H -o name -t snapshot | grep -qx $destination_pool/$dataset_name@$snapshot_prefix"))
     else
-      destination_snapshots=($(zfs list -H -o name -t snapshot | grep "$destination_pool/$dataset_name@$snapshot_prefix"))
+      destination_snapshots=($(zfs list -H -o name -t snapshot | grep -qx "$destination_pool/$dataset_name@$snapshot_prefix"))
     fi
 
     # Simulate a successful send for dry run initial send.
@@ -257,9 +261,14 @@ for dataset in "${datasets[@]}"; do
       fi
       continue
     fi
-    echo "Last common snapshot: $last_snapshot_common"
+    echo "Most recent common snapshot: $last_snapshot_common"
 
-    echo "Sending changes to destination..."
+    if [[ ${last_snapshot_source#*/} == "$last_snapshot_common" ]]; then
+      echo "Most recent source snapshot '$last_snapshot_common' exists on destination; skipping incremental sending."
+      continue
+    fi
+
+    echo "Sending incremental changes to destination..."
     if [ ! -v dry_run ]; then
       if [ -v remote_shell ]; then
         zfs send -wR$verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv -Fdu $destination_pool"
@@ -267,9 +276,10 @@ for dataset in "${datasets[@]}"; do
         zfs send -wR$verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv -Fdu "$destination_pool"
       fi
     fi
-  fi
-
-  if [ -v dry_run ]; then
-    echo "No changes have been made. To make changes, remove the --dry-run|-d flag."
+    echo "Incremental changes have been sent."
   fi
 done
+
+if [ -v dry_run ]; then
+  echo "No changes have been made. To make changes, remove the --dry-run|-d flag."
+fi

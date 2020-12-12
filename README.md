@@ -1,9 +1,9 @@
 # zfsbud
-ZFS snapshotting, replicating & backup rotating convenience script.
+ZFS snapshotting, replicating & backup rotating convenience bash script.
 
 ## Introduction
 This is a convenience script that helps to manage multiple ZFS operations within one command. The following operations are possible:
-- Creation a snapshot of one or multiple datasets
+- Creation of a snapshot of one or multiple datasets
 - Rotation (Deletion) of older snapshots of one or multiple datasets while keeping 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots
 - Replication of one or multiple datasets to a local or remote location through ZFS send
 - Smart handling of initial & consecutive send operations
@@ -14,8 +14,8 @@ This is a convenience script that helps to manage multiple ZFS operations within
 Here are some examples of usage.
 
 ### Snapshotting of a local dataset
-`zfsbud.sh --create pool/dataset1`
-- `--create|-c` creates a snapshot for each dataset with the following name: `pool/dataset@auto_YYYYMMDDHHMMSS`
+`zfsbud.sh --create-snapshot pool/dataset1`
+- `--create-snapshot|-c` creates a snapshot for each dataset with the following name: `pool/dataset@auto_YYYYMMDDHHMMSS`
 - Snapshot name prefix (default: `auto_`) can be overridden with `--snapshot-prefix|-p [cute_name_]`
 
 ### Rotating/deleting of a dataset's snapshots made with this script
@@ -25,10 +25,10 @@ Here are some examples of usage.
 - Keeps 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots
 
 ### Initial sending of a dataset to a remote
-`zfsbud.sh --send remotepool_name --initial --rsh "ssh user@server -p22" pool/dataset1`
+`zfsbud.sh --send remote_pool_name --initial --rsh "ssh user@server -p22" pool/dataset1`
 - `--initial|-i` will copy all snapshots over to the destination.
-For it to work, the destination dataset needs to be unmounted and empty (no snapshots).
-- This works with encrypted and unencrypted datasets.
+- For an encrypted source dataset, the destination dataset must be non-existent. 
+- For an unencrypted source dataset, the destination dataset must be either non-existent, or unmounted and empty (no snapshots).
 
 ### Consecutive sending of a dataset to a remote
 `zfsbud.sh --send remote_pool_name --rsh "ssh user@server -p22" pool/dataset1`
@@ -44,6 +44,9 @@ For it to work, the destination dataset needs to be unmounted and empty (no snap
 
 ### Dry run
 To see the output of what would happen without making actual changes, add `--dry-run|-d`. This is highly recommended before any new usage of this script.
+
+## Caution
+This script overwrites destination datasets with source datasets. Don't use when tired or drugged.
 
 ## Credit
 Created and maintained by Pawel Ginalski (https://gbyte.dev).
