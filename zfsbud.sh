@@ -175,7 +175,9 @@ for dataset in "${datasets[@]}"; do
   dataset_name=${dataset#*/}
   source_pool=${dataset%/*}
 
-  source_snapshots=($(zfs list -H -o name -t snapshot | grep -qx "$source_pool/$dataset_name@$snapshot_prefix"))
+  source_snapshots=($(zfs list -H -o name -t snapshot | grep "$source_pool/$dataset_name@$snapshot_prefix"))
+
+  echo "$source_snapshots"
 
   # Create a new source snapshot.
   if [ -v create ]; then
@@ -236,9 +238,9 @@ for dataset in "${datasets[@]}"; do
 
     # Incremental send.
     if [ -v remote_shell ]; then
-      destination_snapshots=($($remote_shell "zfs list -H -o name -t snapshot | grep -qx $destination_pool/$dataset_name@$snapshot_prefix"))
+      destination_snapshots=($($remote_shell "zfs list -H -o name -t snapshot | grep $destination_pool/$dataset_name@$snapshot_prefix"))
     else
-      destination_snapshots=($(zfs list -H -o name -t snapshot | grep -qx "$destination_pool/$dataset_name@$snapshot_prefix"))
+      destination_snapshots=($(zfs list -H -o name -t snapshot | grep "$destination_pool/$dataset_name@$snapshot_prefix"))
     fi
 
     # Simulate a successful send for dry run initial send.
