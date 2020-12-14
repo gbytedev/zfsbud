@@ -177,8 +177,6 @@ for dataset in "${datasets[@]}"; do
 
   source_snapshots=($(zfs list -H -o name -t snapshot | grep "$source_pool/$dataset_name@$snapshot_prefix"))
 
-  echo "$source_snapshots"
-
   # Create a new source snapshot.
   if [ -v create ]; then
     new_snapshot="$source_pool/$dataset_name@$snapshot_prefix$timestamp"
@@ -192,18 +190,20 @@ for dataset in "${datasets[@]}"; do
     source_snapshots+=("$new_snapshot")
   fi
 
-  # Remove (rotate) old source snapshots.
+  # Rotate (selectively remove) old source snapshots.
   if [ -v remove_old ]; then
     for i in "${!source_snapshots[@]}"; do
-      if [[ "${!keep_snapshots[*]}" != *"${source_snapshots[i]: -${#timestamp}:8}"* ]]; then
+      # Remove all snapshots prefixed accordingly and not matching the
+      # keep_snapshots pattern; always keep the most recent snapshot.
+      if [[ "${!keep_snapshots[*]}" != *"${source_snapshots[i]: -${#timestamp}:8}"* ]] && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
         echo "Deleting source snapshot: ${source_snapshots[i]}"
         if [ ! -v dry_run ]; then
           zfs destroy -f "${source_snapshots[i]}"
         fi
         unset "source_snapshots[i]"
       fi
-      source_snapshots=("${source_snapshots[@]}")
     done
+    source_snapshots=("${source_snapshots[@]}")
   fi
 
   if [ -v send ]; then
@@ -218,13 +218,12 @@ for dataset in "${datasets[@]}"; do
       continue
     fi
 
-    # Initial send. Destination dataset must be unmounted.
+    # Initial send.
+
     if [ -v initial ]; then
-      # Get name of first source snapshot.
       first_snapshot_source=${source_snapshots[0]}
       echo "Initial source snapshot: $first_snapshot_source"
 
-      # Send first source snapshot to destination.
       echo "Sending initial snapshot to destination..."
       if [ ! -v dry_run ]; then
         if [ -v remote_shell ]; then
@@ -237,6 +236,7 @@ for dataset in "${datasets[@]}"; do
     fi
 
     # Incremental send.
+
     if [ -v remote_shell ]; then
       destination_snapshots=($($remote_shell "zfs list -H -o name -t snapshot | grep $destination_pool/$dataset_name@$snapshot_prefix"))
     else
