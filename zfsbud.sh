@@ -110,7 +110,7 @@ for dataset in "${datasets[@]}"; do
   fi
 
   if ! zfs list -H -o name | grep -qx "$dataset"; then
-    echo "ERROR: Source dataset '$dataset' does not exists."
+    echo "ERROR: Source dataset '$dataset' does not exist."
     exit 1
   fi
 
@@ -119,7 +119,12 @@ for dataset in "${datasets[@]}"; do
 
     if [ -v remote_shell ]; then
       if [ ! -v initial ] && ! $remote_shell "zfs list -H -o name" | grep -qx "$destination_pool/$dataset_name"; then
-        echo "ERROR: Remote destination dataset '$destination_pool/$dataset_name' does not exists. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
+        echo "ERROR: Remote destination dataset '$destination_pool/$dataset_name' does not exist. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
+        exit 1
+      fi
+
+      if [ -v initial ] && $remote_shell "zfs list -H -o name" | grep -qx "$destination_pool/$dataset_name"; then
+        echo "ERROR: Remote destination dataset '$destination_pool/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to send an incremental stream by removing the --initial|-i flag instead?)"
         exit 1
       fi
     else
@@ -129,7 +134,12 @@ for dataset in "${datasets[@]}"; do
       fi
 
       if [ ! -v initial ] && ! zfs list -H -o name | grep -qx "$destination_pool/$dataset_name"; then
-        echo "ERROR: Local destination dataset '$destination_pool/$dataset_name' does not exists. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
+        echo "ERROR: Local destination dataset '$destination_pool/$dataset_name' does not exist. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
+        exit 1
+      fi
+
+      if [ -v initial ] && zfs list -H -o name | grep -qx "$destination_pool/$dataset_name"; then
+        echo "ERROR: Local destination dataset '$destination_pool/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to send an incremental stream by removing the --initial|-i flag instead?)"
         exit 1
       fi
     fi
@@ -172,6 +182,10 @@ if [ -v remove_old ]; then
 fi
 
 for dataset in "${datasets[@]}"; do
+  echo
+  echo "*** Processing dataset $dataset. ***"
+  echo
+
   dataset_name=${dataset#*/}
   source_pool=${dataset%/*}
 
@@ -227,12 +241,16 @@ for dataset in "${datasets[@]}"; do
       echo "Sending initial snapshot to destination..."
       if [ ! -v dry_run ]; then
         if [ -v remote_shell ]; then
-          zfs send -w$verbose "$first_snapshot_source" | $remote_shell "zfs recv -Fu $destination_pool/$dataset_name"
+          if zfs send -w$verbose "$first_snapshot_source" | $remote_shell "zfs recv -Fu $destination_pool/$dataset_name"; then
+            echo "Initial snapshot has been sent."
+          fi
         else
-          zfs send -w$verbose "$first_snapshot_source" | zfs recv -Fu "$destination_pool/$dataset_name"
+          if zfs send -w$verbose "$first_snapshot_source" | zfs recv -Fu "$destination_pool/$dataset_name"; then
+            echo "Initial snapshot has been sent."
+          fi
         fi
       fi
-      echo "Initial snapshot has been sent."
+
     fi
 
     # Incremental send.
@@ -273,12 +291,15 @@ for dataset in "${datasets[@]}"; do
     echo "Sending incremental changes to destination..."
     if [ ! -v dry_run ]; then
       if [ -v remote_shell ]; then
-        zfs send -wR$verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv -Fdu $destination_pool"
+        if zfs send -wR$verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv -Fdu $destination_pool"; then
+          echo "Incremental changes have been sent."
+        fi
       else
-        zfs send -wR$verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv -Fdu "$destination_pool"
+        if zfs send -wR$verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv -Fdu "$destination_pool"; then
+          echo "Incremental changes have been sent."
+        fi
       fi
     fi
-    echo "Incremental changes have been sent."
   fi
 done
 
