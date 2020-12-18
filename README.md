@@ -27,8 +27,7 @@ Here are some examples of usage.
 ### Initial sending of a dataset to a remote
 `zfsbud.sh --send remote_pool_name --initial --rsh "ssh user@server -p22" pool/dataset1`
 - `--initial|-i` will copy all snapshots over to the destination.
-- For an encrypted source dataset, the destination dataset must be non-existent. 
-- For an unencrypted source dataset, the destination dataset must be either non-existent, or unmounted and empty (no snapshots).
+- The destination dataset must be non-existent.
 
 ### Consecutive sending of a dataset to a remote
 `zfsbud.sh --send remote_pool_name --rsh "ssh user@server -p22" pool/dataset1`
@@ -46,7 +45,7 @@ Here are some examples of usage.
 To see the output of what would happen without making actual changes, add `--dry-run|-d`. This is highly recommended before any new usage of this script.
 
 ## Caution
-This script overwrites destination datasets with source datasets. Don't use when tired or drugged.
+This script does things. Don't use when tired or drugged.
 
 ## Credit
 Created and maintained by Pawel Ginalski (https://gbyte.dev).

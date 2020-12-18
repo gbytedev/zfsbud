@@ -96,6 +96,11 @@ if [ -v destination_pool ] && [[ $destination_pool == */* ]] || [[ $destination_
   exit 1
 fi
 
+if [[ ! $snapshot_prefix =~ ^[A-Za-z0-9_]+$ ]]; then
+  echo "ERROR: The snapshot prefix may only contain letters, digits and underscores."
+  exit 1
+fi
+
 datasets=("$@")
 
 if ((${#datasets[@]} < 1)); then
@@ -158,9 +163,6 @@ if [ -v log ] && [ -v verbose ] && [ -v initial ]; then
   echo "WARNING: Verbose logging during the initial send may produce big log files. Consider omitting the --log|-l and --log-path|-L flags or the --verbose|-v flag."
 fi
 
-# todo Test for unmounted source if initial send.
-# todo Test for snapshots for initial send.
-
 if [ -v remove_old ]; then
   # Get timestamps of 8 daily, 5 weekly (every sunday), 13 monthly (first sunday of every month) and 6 yearly (first sunday of every year) snapshots to be kept
   for i in {0..7}; do ((keep_snapshots[$(date +%Y%m%d -d "-$i day")]++)); done
@@ -189,7 +191,33 @@ for dataset in "${datasets[@]}"; do
   dataset_name=${dataset#*/}
   source_pool=${dataset%/*}
 
-  source_snapshots=($(zfs list -H -o name -t snapshot | grep "$source_pool/$dataset_name@$snapshot_prefix"))
+  source_snapshots=($(zfs list -H -o name -t snapshot | grep "$source_pool/$dataset_name@"))
+
+  if [ -v send ] && [ ! -v create ] && ((${#source_snapshots[@]} < 1)); then
+    echo "No source snapshots of dataset $dataset_name found. Use the --create-snapshot|-c flag to create a snapshot."
+    continue
+  fi
+
+  if [ -v send ] && [ ! -v initial ]; then
+    if [ -v remote_shell ]; then
+      destination_snapshots=($($remote_shell "zfs list -H -o name -t snapshot | grep $destination_pool/$dataset_name@"))
+    else
+      destination_snapshots=($(zfs list -H -o name -t snapshot | grep "$destination_pool/$dataset_name@"))
+    fi
+
+    for destination_snapshot in "${destination_snapshots[@]}"; do
+      for source_snapshot in "${source_snapshots[@]}"; do
+        if [[ "${source_snapshot#*/}" == "${destination_snapshot#*/}" ]]; then
+          last_snapshot_common=${source_snapshot#*/}
+        fi
+      done
+    done
+
+    if [ ! -v last_snapshot_common ]; then
+      echo "No common snapshot found between source and destination. Add the --initial|-i flag to clone the snapshots to the destination."
+      continue
+    fi
+  fi
 
   # Create a new source snapshot.
   if [ -v create ]; then
@@ -208,8 +236,12 @@ for dataset in "${datasets[@]}"; do
   if [ -v remove_old ]; then
     for i in "${!source_snapshots[@]}"; do
       # Remove all snapshots prefixed accordingly and not matching the
-      # keep_snapshots pattern; always keep the most recent snapshot.
-      if [[ "${!keep_snapshots[*]}" != *"${source_snapshots[i]: -${#timestamp}:8}"* ]] && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
+      # keep_snapshots pattern; always keep the most recent snapshot and the last
+      # common snapshot.
+      if [[ "${source_snapshots[i]}" == *"@$snapshot_prefix"* ]] \
+      && [[ "${!keep_snapshots[*]}" != *"${source_snapshots[i]: -${#timestamp}:8}"* ]] \
+      && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] \
+      && [[ "${source_snapshots[i]}" != "$source_pool/$last_snapshot_common" ]] ; then
         echo "Deleting source snapshot: ${source_snapshots[i]}"
         if [ ! -v dry_run ]; then
           zfs destroy -f "${source_snapshots[i]}"
@@ -221,16 +253,6 @@ for dataset in "${datasets[@]}"; do
   fi
 
   if [ -v send ]; then
-    if ((${#source_snapshots[@]} >= 1)); then
-      last_snapshot_source=${source_snapshots[-1]}
-      echo "Most recent source snapshot: $last_snapshot_source"
-    else
-      echo "No source snapshots of dataset $dataset_name found."
-      if [ ! -v create ]; then
-        echo "Use the --create-snapshot|-c flag to create a snapshot."
-      fi
-      continue
-    fi
 
     # Initial send.
 
@@ -249,44 +271,21 @@ for dataset in "${datasets[@]}"; do
             echo "Initial snapshot has been sent."
           fi
         fi
+      else
+        # Simulate a successful send for dry run initial send.
+        destination_snapshots+=("$first_snapshot_source")
       fi
-
+      last_snapshot_common+="${first_snapshot_source#*/}"
     fi
 
-    # Incremental send.
-
-    if [ -v remote_shell ]; then
-      destination_snapshots=($($remote_shell "zfs list -H -o name -t snapshot | grep $destination_pool/$dataset_name@$snapshot_prefix"))
-    else
-      destination_snapshots=($(zfs list -H -o name -t snapshot | grep "$destination_pool/$dataset_name@$snapshot_prefix"))
-    fi
-
-    # Simulate a successful send for dry run initial send.
-    if [ -v initial ] && [ -v dry_run ]; then
-      destination_snapshots+=("$first_snapshot_source")
-    fi
-
-    for destination_snapshot in "${destination_snapshots[@]}"; do
-      for source_snapshot in "${source_snapshots[@]}"; do
-        if [[ "${source_snapshot#*/}" == "${destination_snapshot#*/}" ]]; then
-          last_snapshot_common=${source_snapshot#*/}
-        fi
-      done
-    done
-
-    if [ ! -v last_snapshot_common ]; then
-      echo "No common snapshot found between source and destination."
-      if [ ! -v initial ]; then
-        echo "Add the --initial|-i flag to clone the snapshots to the destination."
-      fi
-      continue
-    fi
-    echo "Most recent common snapshot: $last_snapshot_common"
+    last_snapshot_source=${source_snapshots[-1]}
+    echo "Most recent source snapshot: $last_snapshot_source"
 
     if [[ ${last_snapshot_source#*/} == "$last_snapshot_common" ]]; then
       echo "Most recent source snapshot '$last_snapshot_common' exists on destination; skipping incremental sending."
       continue
     fi
+    echo "Most recent common snapshot: $last_snapshot_common"
 
     echo "Sending incremental changes to destination..."
     if [ ! -v dry_run ]; then
