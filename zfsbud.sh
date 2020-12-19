@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 PATH=/usr/bin:/sbin:/bin
 timestamp_format="%Y%m%d%H%M%S"
