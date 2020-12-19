@@ -5,7 +5,7 @@ timestamp_format="%Y%m%d%H%M%S"
 timestamp=$(date "+$timestamp_format")
 
 snapshot_prefix="auto_"
-log_file="$HOME/.zfsbud"
+log_file="$HOME/zfsbud.log"
 
 for arg in "$@"; do
   case $arg in
@@ -74,6 +74,23 @@ for arg in "$@"; do
       echo "ERROR: --snapshot-prefix|-p requires a prefix string as argument."
       exit 1
     fi
+    ;;
+  -h | --help)
+    echo "Usage: $0 [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]"
+    echo
+    echo " -s, --send <destination_pool_name>   send source dataset incrementally to destination"
+    echo " -i, --initial                        initially clone source dataset to destination (requires --send)"
+    echo " -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)"
+    echo " -c, --create-snapshot                create a timestamped snapshot on source"
+    echo " -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
+    echo " -d, --dry-run                        show output without making actual changes"
+    echo " -p, --snapshot-prefix <prefix>       use a snapshot prefix other than '_auto'"
+    echo " -v, --verbose                        increase verbosity"
+    echo " -l, --log                            log to user's home directory"
+    echo " -L, --log-path </path/to/file>       provide path to log file (implies --log)"
+    echo " -h, --help                           show this help"
+    exit 1
+    exit 0
     ;;
   esac
 done
@@ -240,13 +257,15 @@ for dataset in "${datasets[@]}"; do
       # common snapshot.
       if [[ "${source_snapshots[i]}" == *"@$snapshot_prefix"* ]] \
       && [[ "${!keep_snapshots[*]}" != *"${source_snapshots[i]: -${#timestamp}:8}"* ]] \
-      && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] \
-      && [[ "${source_snapshots[i]}" != "$source_pool/$last_snapshot_common" ]] ; then
-        echo "Deleting source snapshot: ${source_snapshots[i]}"
-        if [ ! -v dry_run ]; then
-          zfs destroy -f "${source_snapshots[i]}"
+      && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
+        if [ -z "$last_snapshot_common" ] \
+        || [[ "${source_snapshots[i]}" != "$source_pool/$last_snapshot_common" ]] ; then
+          echo "Deleting source snapshot: ${source_snapshots[i]}"
+          if [ ! -v dry_run ]; then
+            zfs destroy -f "${source_snapshots[i]}"
+          fi
+          unset "source_snapshots[i]"
         fi
-        unset "source_snapshots[i]"
       fi
     done
     source_snapshots=("${source_snapshots[@]}")
