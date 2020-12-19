@@ -47,7 +47,7 @@ To see the output of what would happen without making actual changes, add `--dry
 ### Help
 Use `--help|-h` to show help.
 ```
-Usage: /home/pawel/scripts/zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
+Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
 
  -s, --send <destination_pool_name>   send source dataset incrementally to destination
  -i, --initial                        initially clone source dataset to destination (requires --send)

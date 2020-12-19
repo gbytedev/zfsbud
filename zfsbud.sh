@@ -5,7 +5,7 @@ timestamp_format="%Y%m%d%H%M%S"
 timestamp=$(date "+$timestamp_format")
 
 snapshot_prefix="auto_"
-log_file="$HOME/zfsbud.log"
+log_file="$HOME/$(basename "$0").log"
 
 for arg in "$@"; do
   case $arg in
@@ -76,7 +76,7 @@ for arg in "$@"; do
     fi
     ;;
   -h | --help)
-    echo "Usage: $0 [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]"
+    echo "Usage: $(basename "$0") [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]"
     echo
     echo " -s, --send <destination_pool_name>   send source dataset incrementally to destination"
     echo " -i, --initial                        initially clone source dataset to destination (requires --send)"
@@ -89,7 +89,6 @@ for arg in "$@"; do
     echo " -l, --log                            log to user's home directory"
     echo " -L, --log-path </path/to/file>       provide path to log file (implies --log)"
     echo " -h, --help                           show this help"
-    exit 1
     exit 0
     ;;
   esac
