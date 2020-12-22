@@ -15,14 +15,14 @@ Here are some examples of usage.
 
 ### Snapshotting of a local dataset
 `zfsbud.sh --create-snapshot pool/dataset1`
-- `--create-snapshot|-c` creates a snapshot for each dataset with the following name: `pool/dataset@auto_YYYYMMDDHHMMSS`
-- Snapshot name prefix (default: `auto_`) can be overridden with `--snapshot-prefix|-p <cute_name_>`
+- `--create-snapshot|-c` creates a snapshot for each dataset with the following name: `pool/dataset@zfsbud_YYYYMMDDHHMMSS`
+- Snapshot name prefix (default: `zfsbud_`) can be overridden with `--snapshot-prefix|-p <cute_name_>`
 
 ### Rotating/deleting of a dataset's snapshots made with this script
 `zfsbud.sh --remove-old pool/dataset1`
 - `--remove-old|-r` removes snapshots created by this script only
 - If you created snapshots with a customized snapshot prefix, make sure to pass that prefix like so `--snapshot prefix|-p <cute_name_>`
-- Keeps 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots
+- In addition to the newest snapshot, the most recent common snapshot, as well as 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots are kept.
 
 ### Initial sending of a dataset to a remote
 `zfsbud.sh --send remote_pool_name --initial --rsh "ssh user@server -p22" pool/dataset1`
@@ -42,7 +42,7 @@ Here are some examples of usage.
 - To add verbosity, add `--verbose|-v`.
 
 ### Dry run
-To see the output of what would happen without making actual changes, add `--dry-run|-d`. This is highly recommended before any new usage of this script.
+To see the output of what would happen without making actual changes, add `--dry-run|-d`. This is highly recommended before any new utilization of this script.
 
 ### Help
 Use `--help|-h` to show help.
@@ -64,6 +64,9 @@ Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
 
 ## Caution
 This script does things. Don't use when tired or drugged.
+
+## Resources
+For more resources and examples, see https://gbyte.dev/project/zfsbud
 
 ## Credit
 Created and maintained by Pawel Ginalski (https://gbyte.dev).
