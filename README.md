@@ -2,7 +2,9 @@
 ZFS snapshotting, replicating & backup rotating convenience bash script.
 
 ## Introduction
-This is a convenience script that helps to manage multiple ZFS operations within one command. The following operations are possible:
+This is a convenience script that helps to manage multiple ZFS operations within one command. The aim here is to pack flexible functionality into a standalone script which will remain one (as opposed to becoming packaged software that depends on python/perl/what-have-you).
+
+The following operations are possible:
 - Creation of a snapshot of one or multiple datasets
 - Rotation (selective deletion) of older snapshots of one or multiple datasets while keeping 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots
 - Replication of one or multiple datasets to a local or remote location through ZFS send
@@ -11,7 +13,7 @@ This is a convenience script that helps to manage multiple ZFS operations within
 - Optional logging
 
 ## Usage
-Here are some examples of usage.
+Here are some usage examples.
 
 ### Snapshotting of a local dataset
 `zfsbud.sh --create-snapshot pool/dataset1`
@@ -61,6 +63,9 @@ Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
  -L, --log-path </path/to/file>       provide path to log file (implies --log)
  -h, --help                           show this help
 ```
+
+## ToDo
+- Make the snapshot lifetime adjustable for rotation.
 
 ## Caution
 This script does things. Don't use when tired or drugged.

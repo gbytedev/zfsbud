@@ -133,7 +133,8 @@ validate_dataset() {
   fi
 }
 
-# Get timestamps of 8 daily, 5 weekly (every sunday), 13 monthly (first sunday of every month) and 6 yearly (first sunday of every year) snapshots to be kept
+# Get timestamps of 8 daily, 5 weekly (every sunday), 13 monthly (first sunday
+# of every month) and 6 yearly (first sunday of every year) snapshots to be kept.
 set_timestamps_to_keep() {
   (( ${#keep_timestamps[@]} )) && return 0 # Perform function once.
 
@@ -160,7 +161,7 @@ get_local_snapshots() {
 }
 
 get_remote_snapshots() {
-  echo $($remote_shell "zfs list -H -o name -t snapshot | grep $1/$2")
+  echo $($remote_shell "zfs list -H -o name -t snapshot | grep $1/$2@")
 }
 
 set_source_snapshots() {
@@ -183,9 +184,7 @@ set_common_snapshot() {
 
   for destination_snapshot in "${destination_snapshots[@]}"; do
     for source_snapshot in "${source_snapshots[@]}"; do
-      if [[ "${source_snapshot#*/}" == "${destination_snapshot#*/}" ]]; then
-        last_snapshot_common=${source_snapshot#*/}
-      fi
+      [[ "${source_snapshot#*/}" == "${destination_snapshot#*/}" ]] && last_snapshot_common=${source_snapshot#*/}
     done
   done
   [ -n "$last_snapshot_common" ] && return 0 || return 1
@@ -203,9 +202,7 @@ rotate_snapshots() {
       if [ -z "$last_snapshot_common" ] \
       || [[ "${source_snapshots[i]}" != "$source_pool/$last_snapshot_common" ]] ; then
         msg "Deleting source snapshot: ${source_snapshots[i]}"
-        if [ ! -v dry_run ]; then
-          zfs destroy -f "${source_snapshots[i]}"
-        fi
+        [ ! -v dry_run ] && zfs destroy -f "${source_snapshots[i]}"
         unset "source_snapshots[i]"
       fi
     fi
@@ -280,7 +277,7 @@ process_dataset() {
     return 1
   fi
 
-  # todo Do not force to recreate dataset if common snapshot is not available.
+  # todo Do not force to recreate dataset if common snapshot is not available?
   if [ -v send ] && [ ! -v initial ] && set_destination_snapshots "$dataset_name" && ! set_common_snapshot; then
     msg "No common snapshot found between source and destination. Add the --initial|-i flag to clone the snapshots to the destination."
     return 1
@@ -293,10 +290,10 @@ process_dataset() {
   [ -v remove_old ] && rotate_snapshots
 
   # Initial send.
-  [ -v send ] && [ -v initial ] && send_initial
+  [ -v send ] && [ -v initial ] && ! send_initial && return 1
 
   # Consecutive send.
-  [ -v send ] &&  send_incremental
+  [ -v send ] &&  ! send_incremental && return 1
 }
 
 # Start logging if instructed.
