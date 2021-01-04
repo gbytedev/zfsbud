@@ -9,6 +9,7 @@ The following operations are possible:
 - Rotation (selective deletion) of older snapshots of one or multiple datasets while keeping 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots
 - Replication of one or multiple datasets to a local or remote location through ZFS send
 - Smart/automatic handling of initial & consecutive send operations
+- Resuming send operations in case of an interruption
 - Dry run mode for output testing without actual changes being made
 - Optional logging
 
@@ -36,6 +37,11 @@ Here are some usage examples.
 - `--send|-s <remote_pool_name>` will figure out the last common snapshot between the source and destination and will send only the newer snapshots that are not present on the destination machine.
 - This works with encrypted and unencrypted datasets.
 
+### Resuming of an interrupted send operation
+`zfsbud.sh --send remote_pool_name --resume --rsh "ssh user@server -p22" pool/dataset1`
+- `--resume|-R` will automatically fetch the stored resume token for each dataset so that the last zfsbud send operation resumes after an interruption.
+- This works for initial and consecutive sending.
+
 ### Create a snapshot of three datasets, rotate/remove old snapshots and send all changes to remote
 `zfsbud.sh -c -r -s remote_pool_name -e "ssh user@server -p22" pool/dataset1 pool/dataset2 pool/dataset3`
 
@@ -51,8 +57,9 @@ Use `--help|-h` to show help.
 ```
 Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
 
- -s, --send <destination_pool_name>   send source dataset incrementally to destination
+ -s, --send <destination_pool_name>   send source dataset incrementally to specified destination
  -i, --initial                        initially clone source dataset to destination (requires --send)
+ -R, --resume                         resume an interrupted zfs send operation (requires --send)
  -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)
  -c, --create-snapshot                create a timestamped snapshot on source
  -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots
@@ -66,6 +73,7 @@ Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
 
 ## ToDo
 - Make the snapshot lifetime adjustable for rotation.
+- Add snapshot descriptions.
 
 ## Caution
 This script does things. Don't use when tired or drugged.
