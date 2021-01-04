@@ -331,7 +331,7 @@ process_dataset() {
   
   if [ -v resume ] && [ -v resume_token ]; then
     # Resume send.
-    ! send_resume && die "There was a problem resuming the transfer." && return 1
+    ! send_resume && return 1
     ! compare_datasets && return 1
     ! send_incremental && return 1
   else
