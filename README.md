@@ -17,14 +17,15 @@ The following operations are possible:
 Here are some usage examples.
 
 ### Snapshotting of a local dataset
-`zfsbud.sh --create-snapshot pool/dataset1`
-- `--create-snapshot|-c` creates a snapshot for each dataset with the following name: `pool/dataset@zfsbud_YYYYMMDDHHMMSS`
-- Snapshot name prefix (default: `zfsbud_`) can be overridden with `--snapshot-prefix|-p <cute_name_>`
+`zfsbud.sh --create-snapshot some_label pool/dataset1`
+- `--create-snapshot|-c [label]` creates a snapshot for each dataset with the following name: `pool/dataset@zfsbud_YYYYMMDDHHMMSS_some_label`
+- The label is optional.
+- Snapshot name prefix (default: `zfsbud_`) can be overridden with `--snapshot-prefix|-p <cute_prefix_>`.
 
 ### Rotating/deleting of a dataset's snapshots made with this script
 `zfsbud.sh --remove-old pool/dataset1`
 - `--remove-old|-r` removes snapshots created by this script only
-- If you created snapshots with a customized snapshot prefix, make sure to pass that prefix like so `--snapshot prefix|-p <cute_name_>`
+- If you created snapshots with a customized snapshot prefix, make sure to pass that prefix like so `--snapshot prefix|-p <cute_prefix_>`
 - In addition to the newest snapshot, the most recent common snapshot, as well as 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots are kept.
 
 ### Initial sending of a dataset to a remote
@@ -42,8 +43,8 @@ Here are some usage examples.
 - `--resume|-R` will automatically fetch the stored resume token for each dataset so that the last zfsbud send operation resumes after an interruption.
 - This works for initial and consecutive sending.
 
-### Create a snapshot of three datasets, rotate/remove old snapshots and send all changes to remote
-`zfsbud.sh -c -r -s remote_pool_name -e "ssh user@server -p22" pool/dataset1 pool/dataset2 pool/dataset3`
+### Create a snapshot of three datasets labeled "after update", rotate/remove old snapshots and send all changes to remote
+`zfsbud.sh -c after_update -r -s remote_pool_name -e "ssh user@server -p22" pool/dataset1 pool/dataset2 pool/dataset3`
 
 ### Logging
 - To log, add `--log|-l` or `--log-path|-L </path/to/file>`
@@ -61,7 +62,7 @@ Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
  -i, --initial                        initially clone source dataset to destination (requires --send)
  -R, --resume                         resume an interrupted zfs send operation (requires --send)
  -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)
- -c, --create-snapshot                create a timestamped snapshot on source
+ -c, --create-snapshot [label]        create a timestamped snapshot on source with an optional label
  -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots
  -d, --dry-run                        show output without making actual changes
  -p, --snapshot-prefix <prefix>       use a snapshot prefix other than '_auto'
@@ -73,7 +74,6 @@ Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
 
 ## ToDo
 - Make the snapshot lifetime adjustable for rotation.
-- Add snapshot descriptions.
 
 ## Caution
 This script does things. Don't use when tired or drugged.

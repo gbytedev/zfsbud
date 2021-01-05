@@ -20,7 +20,7 @@ help() {
     echo " -i, --initial                        initially clone source dataset to destination (requires --send)"
     echo " -R, --resume                         resume an interrupted zfs send operation (requires --send)"
     echo " -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)"
-    echo " -c, --create-snapshot                create a timestamped snapshot on source"
+    echo " -c, --create-snapshot [label]        create a timestamped snapshot on source with an optional label"
     echo " -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
     echo " -d, --dry-run                        show output without making actual changes"
     echo " -p, --snapshot-prefix <prefix>       use a snapshot prefix other than '_auto'"
@@ -35,30 +35,23 @@ for arg in "$@"; do
   case $arg in
   -c | --create-snapshot)
     create=1
+    if [ "$2" ] && [[ $2 != -* ]] && [[ $2 != */* ]] ; then
+      snapshot_label="_$2"
+      shift
+    fi
     shift
+    ;;
+  -p | --snapshot-prefix)
+    if [ "$2" ] && [[ $2 != -* ]]; then
+      snapshot_prefix=$2
+      shift
+      shift
+    else
+      die "--snapshot-prefix|-p requires a prefix string as argument."
+    fi
     ;;
   -r | --remove-old)
     remove_old=1
-    shift
-    ;;
-  -i | --initial)
-    initial=1
-    shift
-    ;;
-  -R | --resume)
-    resume=1
-    shift
-    ;;
-  -d | --dry-run)
-    dry_run=1
-    shift
-    ;;
-  -v | --verbose)
-    verbose="-v"
-    shift
-    ;;
-  -l | --log)
-    log=1
     shift
     ;;
   -s | --send)
@@ -71,15 +64,13 @@ for arg in "$@"; do
       die "--send|-s requires a destination pool name as parameter."
     fi
     ;;
-  -L | --log-path)
-    if [ "$2" ] && [[ $2 != -* ]]; then
-      log=1
-      log_file=$2
-      shift
-      shift
-    else
-      die "--log-path|-L requires a path to the log file."
-    fi
+  -i | --initial)
+    initial=1
+    shift
+    ;;
+  -R | --resume)
+    resume=1
+    shift
     ;;
   -e | --rsh)
     if [ "$2" ] && [[ $2 != -* ]]; then
@@ -90,14 +81,27 @@ for arg in "$@"; do
       die "--rsh|-e requires an argument specifying the remote shell connection."
     fi
     ;;
-  -p | --snapshot-prefix)
+  -v | --verbose)
+    verbose="-v"
+    shift
+    ;;
+  -l | --log)
+    log=1
+    shift
+    ;;
+  -L | --log-path)
     if [ "$2" ] && [[ $2 != -* ]]; then
-      snapshot_prefix=$2
+      log=1
+      log_file=$2
       shift
       shift
     else
-      die "--snapshot-prefix|-p requires a prefix string as argument."
+      die "--log-path|-L requires a path to the log file."
     fi
+    ;;
+  -d | --dry-run)
+    dry_run=1
+    shift
     ;;
   -h | --help) help ;;
   -?*)
@@ -217,8 +221,9 @@ rotate_snapshots() {
     # Remove all snapshots prefixed accordingly and not matching the
     # keep_timestamps pattern; always keep the most recent snapshot and the last
     # common snapshot.
+    snapshot_name=${source_snapshots[i]#*"@$snapshot_prefix"}
     if [[ "${source_snapshots[i]}" == *"@$snapshot_prefix"* ]] \
-    && [[ "${!keep_timestamps[*]}" != *"${source_snapshots[i]: -${#timestamp}:8}"* ]] \
+    && [[ "${!keep_timestamps[*]}" != *"${snapshot_name:0:8}"* ]] \
     && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
       if [ ! -v last_snapshot_common ] \
       || [[ "${source_snapshots[i]}" != "$source_pool/$last_snapshot_common" ]] ; then
@@ -232,7 +237,7 @@ rotate_snapshots() {
 }
 
 create_new_snapshot() {
-  local new_snapshot="$source_pool/$dataset_name@$snapshot_prefix$timestamp"
+  local new_snapshot="$source_pool/$dataset_name@$snapshot_prefix$timestamp$snapshot_label"
   msg "Creating source snapshot: $new_snapshot"
   if [ ! -v dry_run ]; then
     if ! zfs snapshot "$new_snapshot"; then
@@ -358,6 +363,9 @@ fi
 # Allow only letters, numbers and underscores for the snapshot prefix.
 [[ ! $snapshot_prefix =~ ^[A-Za-z0-9_]+$ ]] && die "The snapshot prefix may only contain letters, digits and underscores."
 
+# Allow only letters, numbers and underscores for the snapshot label.
+[ -v snapshot_label ] && [[ ! $snapshot_label =~ ^[A-Za-z0-9_]+$ ]] && die "The snapshot label may only contain letters, digits and underscores."
+
 datasets=("$@")
 
 # Require dataset names as arguments and validate them.
@@ -380,3 +388,5 @@ done
 
 # Inform about the lack of changes in dry-run mode.
 [ -v dry_run ] && msg "No changes have been made. To make changes, remove the --dry-run|-d flag."
+
+exit 0
