@@ -4,12 +4,14 @@ ZFS snapshotting, replicating & backup rotating convenience bash script.
 ## Introduction
 This is a convenience script that helps to manage multiple ZFS operations within one command. The aim here is to pack flexible functionality into a standalone script which will remain one (as opposed to becoming packaged software that depends on python/perl/what-have-you).
 
+The script tries to be smart about things like automatically resuming a stream choosing the right snapshots on both sides for incremental send. It is very verbose and informs about potential problems and misconfiguration in advance.
+
 The following operations are possible:
 - Creation of a snapshot of one or multiple datasets
 - Rotation (selective deletion) of older snapshots of one or multiple datasets while keeping 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots
-- Replication of one or multiple datasets to a local or remote location through ZFS send
+- Resumable replication of one or multiple datasets to a local or remote location through ZFS send
 - Smart/automatic handling of initial & consecutive send operations
-- Resuming send operations in case of an interruption
+- Resuming of the last operation in case of an interruption
 - Dry run mode for output testing without actual changes being made
 - Optional logging
 
@@ -36,14 +38,19 @@ Here are some usage examples.
 ### Consecutive sending of a dataset to a remote
 `zfsbud.sh --send remote_pool_name --rsh "ssh user@server -p22" pool/dataset1`
 - `--send|-s <remote_pool_name>` will figure out the last common snapshot between the source and destination and will send only the newer snapshots that are not present on the destination machine.
+- This will destroy destination snapshots that have been created between the last common snapshot and the newest source snapshot, including the ones not made with zfsbud.
+- It will replicate all snapshots from source to destination between the last common snapshot and the newest source snapshot, including the ones not made with zfsbud.
 - This works with encrypted and unencrypted datasets.
 
-### Resuming of an interrupted send operation
-`zfsbud.sh --send remote_pool_name --resume --rsh "ssh user@server -p22" pool/dataset1`
-- `--resume|-R` will automatically fetch the stored resume token for each dataset so that the last zfsbud send operation resumes after an interruption.
+### Creating resumable streams & resuming
+- The script implicitly creates resumable streams and resumes a stream when it finds a matching token on the receiving side.
 - This works for initial and consecutive sending.
 
-### Create a snapshot of three datasets labeled "after update", rotate/remove old snapshots and send all changes to remote
+### Disabling resume functionality
+`zfsbud.sh --send remote_pool_name --no-resume --rsh "ssh user@server -p22" pool/dataset1`
+- If a non-resumable stream is desired, or resuming an incomplete stream is undesired, `--no-resume|-n` must be used.
+
+### Create a snapshot of three datasets labeled "after_update", rotate/remove old snapshots and send all changes to remote
 `zfsbud.sh -c after_update -r -s remote_pool_name -e "ssh user@server -p22" pool/dataset1 pool/dataset2 pool/dataset3`
 
 ### Logging
@@ -60,12 +67,12 @@ Usage: zfsbud [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]
 
  -s, --send <destination_pool_name>   send source dataset incrementally to specified destination
  -i, --initial                        initially clone source dataset to destination (requires --send)
- -R, --resume                         resume an interrupted zfs send operation (requires --send)
+ -n, --no-resume                      do not create resumable streams and do not resume streams (requires --send)
  -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)
  -c, --create-snapshot [label]        create a timestamped snapshot on source with an optional label
  -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots
  -d, --dry-run                        show output without making actual changes
- -p, --snapshot-prefix <prefix>       use a snapshot prefix other than '_auto'
+ -p, --snapshot-prefix <prefix>       use a snapshot prefix other than 'zfsbud_'
  -v, --verbose                        increase verbosity
  -l, --log                            log to user's home directory
  -L, --log-path </path/to/file>       provide path to log file (implies --log)

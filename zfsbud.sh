@@ -8,6 +8,7 @@ snapshot_prefix="zfsbud_"
 log_file="$HOME/$(basename "$0").log"
 
 keep_timestamps=()
+resume="-s"
 
 msg() { echo "$*" 1>&2; }
 warn() { msg "WARNING: $*"; }
@@ -18,12 +19,12 @@ help() {
     echo
     echo " -s, --send <destination_pool_name>   send source dataset incrementally to specified destination"
     echo " -i, --initial                        initially clone source dataset to destination (requires --send)"
-    echo " -R, --resume                         resume an interrupted zfs send operation (requires --send)"
+    echo " -n, --no-resume                      do not create resumable streams and do not resume streams (requires --send)"
     echo " -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)"
     echo " -c, --create-snapshot [label]        create a timestamped snapshot on source with an optional label"
     echo " -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
     echo " -d, --dry-run                        show output without making actual changes"
-    echo " -p, --snapshot-prefix <prefix>       use a snapshot prefix other than '_auto'"
+    echo " -p, --snapshot-prefix <prefix>       use a snapshot prefix other than 'zfsbud_'"
     echo " -v, --verbose                        increase verbosity"
     echo " -l, --log                            log to user's home directory"
     echo " -L, --log-path </path/to/file>       provide path to log file (implies --log)"
@@ -68,8 +69,8 @@ for arg in "$@"; do
     initial=1
     shift
     ;;
-  -R | --resume)
-    resume=1
+  -n | --no-resume)
+    unset resume
     shift
     ;;
   -e | --rsh)
@@ -135,16 +136,17 @@ validate_dataset() {
   dataset_name=${dataset#*/}
 
   set_resume_token "$destination_pool/$dataset_name"
-  if [ -v resume ] && [ ! -v resume_token ]; then
-    die "--resume|-R was specified for '$destination_pool/$dataset_name', but the destination seems to be missing a resumable token. (Did you mean to exclude the --resume|-R flag?)"
+
+  if [ ! -v resume ] && [ -v resume_token ]; then
+    die "--no-resume|-n was specified for '$destination_pool/$dataset_name', but the destination only accepts a resumable stream. (Did you mean to exclude the --no-resume|-n flag?)"
   fi
   
-  if [ ! -v resume ] && [ ! -v initial ] && ! dataset_exists "$destination_pool/$dataset_name"; then
+  if [ ! -v resume_token ] && [ ! -v initial ] && ! dataset_exists "$destination_pool/$dataset_name"; then
     die "Destination dataset '$destination_pool/$dataset_name' does not exist. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
   fi
   
-  if [ ! -v resume ] && [ -v initial ] && dataset_exists "$destination_pool/$dataset_name"; then
-    die "Destination dataset '$destination_pool/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to continue the initial stream by adding the --resume|-R flag, or did you mean to send an incremental stream by removing the --initial|-i flag instead?)"
+  if [ ! -v resume_token ] && [ -v initial ] && dataset_exists "$destination_pool/$dataset_name"; then
+    die "Destination dataset '$destination_pool/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to send an incremental stream by excluding the --initial|-i flag instead?)"
   fi
 }
 
@@ -255,9 +257,9 @@ send_initial() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w "$verbose" "$first_snapshot_source" | $remote_shell "zfs recv -s -F -u $destination_pool/$dataset_name" && return 1
+      ! zfs send -w "$verbose" "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_pool/$dataset_name" && return 1
     else
-      ! zfs send -w "$verbose" "$first_snapshot_source" | zfs recv -s -F -u "$destination_pool/$dataset_name" && return 1
+      ! zfs send -w "$verbose" "$first_snapshot_source" | zfs recv "$resume" -F -u "$destination_pool/$dataset_name" && return 1
     fi
   else
     # Simulate a successful send for dry run initial send.
@@ -270,9 +272,9 @@ send_initial() {
 send_resume() {
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w "$verbose" -t "$resume_token" | $remote_shell "zfs recv -s -F -d -u $destination_pool" && return 1
+      ! zfs send -w "$verbose" -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
     else
-      ! zfs send -w "$verbose" -t "$resume_token" | zfs recv -s -F -d -u "$destination_pool" && return 1
+      ! zfs send -w "$verbose" -t "$resume_token" | zfs recv "$resume" -F -d -u "$destination_pool" && return 1
     fi
   fi
   msg "The resumed transfer has been successfully completed."
@@ -291,12 +293,21 @@ send_incremental() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w -R $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv -s -F -d -u $destination_pool" && return 1
+      ! zfs send -w -R "$verbose" -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
     else
-      ! zfs send -w -R $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv -s -F -d -u "$destination_pool" && return 1
+      ! zfs send -w -R "$verbose" -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv "$resume" -F -d -u "$destination_pool" && return 1
     fi
   fi
   msg "Incremental changes have been sent."
+}
+
+function compare_datasets() {
+  set_destination_snapshots "$dataset_name" && ! set_common_snapshot && return 1
+  return 0
+}
+
+function warn_no_common_snapshots() {
+  warn "No common snapshot found between source and destination. Add the --initial|-i flag to clone the snapshots to the destination."
 }
 
 process_dataset() {
@@ -314,37 +325,36 @@ process_dataset() {
   set_source_snapshots "$source_pool" "$dataset_name"
 
   if [ -v send ] && [ ! -v create ] && ((${#source_snapshots[@]} < 1)); then
-    msg "No source snapshots of dataset $dataset_name found. Use the --create-snapshot|-c flag to create a snapshot."
+    warn "No source snapshots of dataset $dataset_name found. Use the --create-snapshot|-c flag to create a snapshot."
     return 1
   fi
 
-  # Create a new source snapshot.
+  ### Create a new source snapshot. ###
+
   [ -v create ] && ! create_new_snapshot && return 1
-  
-  function compare_datasets() {
-    set_destination_snapshots "$dataset_name" && ! set_common_snapshot && msg "No common snapshot found between source and destination. Add the --initial|-i flag to clone the snapshots to the destination." && return 1
-    return 0
-  }
 
-  [ -v send ] && [ ! -v initial ] && ! compare_datasets && return 1
+  ### Rotate (selectively remove) old source snapshots. ###
 
-  # Rotate (selectively remove) old source snapshots.
+  [ -v send ] && [ ! -v initial ] && compare_datasets
   [ -v remove_old ] && rotate_snapshots
+
+  ### Send. ###
+
+  [ ! -v send ] && return 0
   
   # Set resume token.
   [ -v resume ] && set_resume_token "$destination_pool/$dataset_name"
-  
-  if [ -v resume ] && [ -v resume_token ]; then
-    # Resume send.
+
+  if [ -v resume_token ]; then
+    # Resume send & consecutive send.
     ! send_resume && return 1
-    ! compare_datasets && return 1
+    ! compare_datasets && warn_no_common_snapshots && return 1
     ! send_incremental && return 1
   else
-    # Initial send.
-    [ -v send ] && [ -v initial ] && ! send_initial && return 1
-
-    # Consecutive send.
-    [ -v send ] &&  ! send_incremental && return 1
+    # Initial send & consecutive send.
+    ! compare_datasets && warn_no_common_snapshots && return 1
+    [ -v initial ] && ! send_initial && return 1
+    ! send_incremental && return 1
   fi
 }
 
@@ -376,10 +386,9 @@ done
 
 # Warn about potentially erroneous options.
 [ ! -v send ] && [ -v initial ] && warn "The --initial|-i flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
-[ ! -v send ] && [ -v resume ] && warn "The --resume|-R flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
+[ ! -v send ] && [ ! -v resume ] && warn "The --no-resume|-n flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ -v remote_shell ] && warn "The --rsh|-e flag will be ignored, as there is no need for specifying a remote shell connection when not sending. (Did you mean to include the --send|-s flag?)"
-[ -v send ] && [ -v resume ] && [ -v initial ] && warn "The --initial|-i flag will be ignored, as the --resume|-R flag will continue any last interrupted transfer."
-[ -v log ] && [ -v verbose ] && [ -v initial ] && warn "Verbose logging during the initial send may produce big log files. Consider omitting the --log|-l and --log-path|-L flags or the --verbose|-v flag."
+[ -v log ] && [ -v verbose ] && [ -v initial ] && warn "Verbose logging during the initial send may produce big log files. Consider excluding the --log|-l and --log-path|-L flags or the --verbose|-v flag."
 
 # Process each dataset.
 for dataset in "${datasets[@]}"; do
