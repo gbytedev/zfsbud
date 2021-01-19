@@ -257,9 +257,9 @@ send_initial() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w "$verbose" "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_pool/$dataset_name" && return 1
+      ! zfs send -w $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_pool/$dataset_name" && return 1
     else
-      ! zfs send -w "$verbose" "$first_snapshot_source" | zfs recv "$resume" -F -u "$destination_pool/$dataset_name" && return 1
+      ! zfs send -w $verbose "$first_snapshot_source" | zfs recv $resume -F -u "$destination_pool/$dataset_name" && return 1
     fi
   else
     # Simulate a successful send for dry run initial send.
@@ -272,9 +272,9 @@ send_initial() {
 send_resume() {
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w "$verbose" -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
+      ! zfs send -w $verbose -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
     else
-      ! zfs send -w "$verbose" -t "$resume_token" | zfs recv "$resume" -F -d -u "$destination_pool" && return 1
+      ! zfs send -w $verbose -t "$resume_token" | zfs recv $resume -F -d -u "$destination_pool" && return 1
     fi
   fi
   msg "The resumed transfer has been successfully completed."
@@ -293,9 +293,9 @@ send_incremental() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w -R "$verbose" -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
+      ! zfs send -w -R $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
     else
-      ! zfs send -w -R "$verbose" -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv "$resume" -F -d -u "$destination_pool" && return 1
+      ! zfs send -w -R $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_pool" && return 1
     fi
   fi
   msg "Incremental changes have been sent."
