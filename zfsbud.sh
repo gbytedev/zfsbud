@@ -311,8 +311,8 @@ function warn_no_common_snapshots() {
 }
 
 process_dataset() {
-  local source_pool=${1%/*}
   local dataset_name=${1#*/}
+  local source_pool=${1%/$dataset_name*}
   source_snapshots=()
   destination_snapshots=()
   unset last_snapshot_common
