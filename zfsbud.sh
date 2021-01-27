@@ -22,6 +22,7 @@ help() {
     echo " -n, --no-resume                      do not create resumable streams and do not resume streams (requires --send)"
     echo " -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)"
     echo " -c, --create-snapshot [label]        create a timestamped snapshot on source with an optional label"
+    echo " -R, --recursive                      send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)"
     echo " -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
     echo " -d, --dry-run                        show output without making actual changes"
     echo " -p, --snapshot-prefix <prefix>       use a snapshot prefix other than 'zfsbud_'"
@@ -67,6 +68,11 @@ for arg in "$@"; do
     ;;
   -i | --initial)
     initial=1
+    shift
+    ;;
+  -R | --recursive)
+    recursive_send="-R"
+    recursive_create="-r"
     shift
     ;;
   -n | --no-resume)
@@ -238,11 +244,12 @@ rotate_snapshots() {
   source_snapshots=("${source_snapshots[@]}")
 }
 
+ # todo Update messages for recursive snapshots.
 create_new_snapshot() {
   local new_snapshot="$source_pool/$dataset_name@$snapshot_prefix$timestamp$snapshot_label"
   msg "Creating source snapshot: $new_snapshot"
   if [ ! -v dry_run ]; then
-    if ! zfs snapshot "$new_snapshot"; then
+    if ! zfs snapshot $recursive_create "$new_snapshot"; then
       msg "Snapshot '$new_snapshot' could not be created on source dataset '$dataset'."
       return 1
     fi
@@ -257,9 +264,9 @@ send_initial() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_pool/$dataset_name" && return 1
+      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_pool/$dataset_name" && return 1
     else
-      ! zfs send -w $verbose "$first_snapshot_source" | zfs recv $resume -F -u "$destination_pool/$dataset_name" && return 1
+      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | zfs recv $resume -F -u "$destination_pool/$dataset_name" && return 1
     fi
   else
     # Simulate a successful send for dry run initial send.
@@ -293,9 +300,9 @@ send_incremental() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w -R $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
+      ! zfs send -w $recursive_send $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
     else
-      ! zfs send -w -R $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_pool" && return 1
+      ! zfs send -w $recursive_send $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_pool" && return 1
     fi
   fi
   msg "Incremental changes have been sent."
@@ -388,6 +395,7 @@ done
 [ ! -v send ] && [ -v initial ] && warn "The --initial|-i flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ ! -v resume ] && warn "The --no-resume|-n flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ -v remote_shell ] && warn "The --rsh|-e flag will be ignored, as there is no need for specifying a remote shell connection when not sending. (Did you mean to include the --send|-s flag?)"
+[ ! -v send ] && [ ! -v create ] && [ -v recursive_send ] && warn "The --recursive|-R flag will be ignored, as sending or creating snapshot was not specified. (Did you mean to include the --send|-s or --create-snapshot|-c flag?)"
 [ -v log ] && [ -v verbose ] && [ -v initial ] && warn "Verbose logging during the initial send may produce big log files. Consider excluding the --log|-l and --log-path|-L flags or the --verbose|-v flag."
 
 # Process each dataset.
