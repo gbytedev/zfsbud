@@ -2,7 +2,8 @@
 
 PATH=/usr/bin:/sbin:/bin
 readonly timestamp_format="%Y%m%d%H%M%S"
-readonly timestamp=$(date "+$timestamp_format")
+timestamp=$(date "+$timestamp_format")
+readonly timestamp
 
 snapshot_prefix="zfsbud_"
 log_file="$HOME/$(basename "$0").log"
@@ -189,14 +190,14 @@ get_remote_snapshots() {
 
 set_source_snapshots() {
   (( ${#source_snapshots[@]} )) && return 0 # Perform function once.
-  source_snapshots=($(get_local_snapshots "$1" "$2"))
+  mapfile -t source_snapshots < <(get_local_snapshots "$1" "$2")
 }
 
 set_destination_snapshots() {
   if [ -v remote_shell ]; then
-    destination_snapshots=($(get_remote_snapshots "$destination_pool" "$1"))
+    mapfile -t destination_snapshots < <(get_remote_snapshots "$destination_pool" "$1")
   else
-    destination_snapshots=($(get_local_snapshots "$destination_pool" "$1"))
+    mapfile -t destination_snapshots < <(get_local_snapshots "$destination_pool" "$1")
   fi
 }
 
