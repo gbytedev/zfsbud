@@ -360,7 +360,7 @@ process_dataset() {
     ! send_incremental && return 1
   else
     # Initial send & consecutive send.
-    ! compare_datasets && warn_no_common_snapshots && return 1
+    ! compare_datasets && [ ! -v initial ] && warn_no_common_snapshots && return 1
     [ -v initial ] && ! send_initial && return 1
     ! send_incremental && return 1
   fi
