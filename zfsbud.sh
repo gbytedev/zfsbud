@@ -16,21 +16,21 @@ warn() { msg "WARNING: $*"; }
 die() { msg "ERROR: $*"; exit 1; }
 
 help() {
-    echo "Usage: $(basename "$0") [OPTION]... SOURCE_POOL/DATASET [SOURCE_POOL/DATASET2...]"
+    echo "Usage: $(basename "$0") [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]"
     echo
-    echo " -s, --send <destination_pool_name>   send source dataset incrementally to specified destination"
-    echo " -i, --initial                        initially clone source dataset to destination (requires --send)"
-    echo " -n, --no-resume                      do not create resumable streams and do not resume streams (requires --send)"
-    echo " -e, --rsh <'ssh user@server -p22'>   send to remote destination by providing ssh connection string (requires --send)"
-    echo " -c, --create-snapshot [label]        create a timestamped snapshot on source with an optional label"
-    echo " -R, --recursive                      send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)"
-    echo " -r, --remove-old                     remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
-    echo " -d, --dry-run                        show output without making actual changes"
-    echo " -p, --snapshot-prefix <prefix>       use a snapshot prefix other than 'zfsbud_'"
-    echo " -v, --verbose                        increase verbosity"
-    echo " -l, --log                            log to user's home directory"
-    echo " -L, --log-path </path/to/file>       provide path to log file (implies --log)"
-    echo " -h, --help                           show this help"
+    echo " -s, --send <destination_parent_dataset/path> send source dataset incrementally to specified destination"
+    echo " -i, --initial                                initially clone source dataset to destination (requires --send)"
+    echo " -n, --no-resume                              do not create resumable streams and do not resume streams (requires --send)"
+    echo " -e, --rsh <'ssh user@server -p22'>           send to remote destination by providing ssh connection string (requires --send)"
+    echo " -c, --create-snapshot [label]                create a timestamped snapshot on source with an optional label"
+    echo " -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)"
+    echo " -r, --remove-old                             remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
+    echo " -d, --dry-run                                show output without making actual changes"
+    echo " -p, --snapshot-prefix <prefix>               use a snapshot prefix other than 'zfsbud_'"
+    echo " -v, --verbose                                increase verbosity"
+    echo " -l, --log                                    log to user's home directory"
+    echo " -L, --log-path </path/to/file>               provide path to log file (implies --log)"
+    echo " -h, --help                                   show this help"
     exit 0
 }
 
@@ -60,11 +60,11 @@ for arg in "$@"; do
   -s | --send)
     if [ "$2" ] && [[ $2 != -* ]]; then
       send=1
-      destination_pool=$2
+      destination_parent_dataset=$2
       shift
       shift
     else
-      die "--send|-s requires a destination pool name as parameter."
+      die "--send|-s requires a destination dataset name as parameter."
     fi
     ;;
   -i | --initial)
@@ -128,11 +128,13 @@ dataset_exists() {
 
 validate_dataset() {
   local dataset="$1"
+  local dataset_name=${dataset##*/}
   unset resume_token
 
   # Validate dataset name.
 
-  [[ $dataset == *@* ]] || [[ $dataset != */* ]] && die "Provided parameters need to be source datasets prefixed with the pool name (pool/dataset pool/dataset2 ...)."
+  # todo Make it work for pools without datasets?
+  [[ $dataset == *@* ]] || [[ $dataset != */* ]] && die "Provided parameters need to be source datasets (source/dataset/path1 source/dataset/path2 ...)."
 
   ! zfs list -H -o name | grep -qx "$dataset" && die "Source dataset '$dataset' does not exist."
 
@@ -140,20 +142,18 @@ validate_dataset() {
 
   [ ! -v send ] && return
 
-  dataset_name=${dataset#*/}
-
-  set_resume_token "$destination_pool/$dataset_name"
+  set_resume_token "$destination_parent_dataset/$dataset_name"
 
   if [ ! -v resume ] && [ -v resume_token ]; then
-    die "--no-resume|-n was specified for '$destination_pool/$dataset_name', but the destination only accepts a resumable stream. (Did you mean to exclude the --no-resume|-n flag?)"
+    die "--no-resume|-n was specified for '$destination_parent_dataset/$dataset_name', but the destination only accepts a resumable stream. (Did you mean to exclude the --no-resume|-n flag?)"
   fi
   
-  if [ ! -v resume_token ] && [ ! -v initial ] && ! dataset_exists "$destination_pool/$dataset_name"; then
-    die "Destination dataset '$destination_pool/$dataset_name' does not exist. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
+  if [ ! -v resume_token ] && [ ! -v initial ] && ! dataset_exists "$destination_parent_dataset/$dataset_name"; then
+    die "Destination dataset '$destination_parent_dataset/$dataset_name' does not exist. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
   fi
   
-  if [ ! -v resume_token ] && [ -v initial ] && dataset_exists "$destination_pool/$dataset_name"; then
-    die "Destination dataset '$destination_pool/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to send an incremental stream by excluding the --initial|-i flag instead?)"
+  if [ ! -v resume_token ] && [ -v initial ] && dataset_exists "$destination_parent_dataset/$dataset_name"; then
+    die "Destination dataset '$destination_parent_dataset/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to send an incremental stream by excluding the --initial|-i flag instead?)"
   fi
 }
 
@@ -181,30 +181,30 @@ set_timestamps_to_keep() {
 }
 
 get_local_snapshots() {
-  zfs list -H -o name -t snapshot | grep "$1/$2@"
+  zfs list -H -o name -t snapshot | grep "$1@"
 }
 
 get_remote_snapshots() {
-  $remote_shell "zfs list -H -o name -t snapshot | grep $1/$2@"
+  $remote_shell "zfs list -H -o name -t snapshot | grep $1@"
 }
 
 set_source_snapshots() {
   (( ${#source_snapshots[@]} )) && return 0 # Perform function once.
-  mapfile -t source_snapshots < <(get_local_snapshots "$1" "$2")
+  mapfile -t source_snapshots < <(get_local_snapshots "$1")
 }
 
 set_destination_snapshots() {
   if [ -v remote_shell ]; then
-    mapfile -t destination_snapshots < <(get_remote_snapshots "$destination_pool" "$1")
+    mapfile -t destination_snapshots < <(get_remote_snapshots "$destination_parent_dataset/$1")
   else
-    mapfile -t destination_snapshots < <(get_local_snapshots "$destination_pool" "$1")
+    mapfile -t destination_snapshots < <(get_local_snapshots "$destination_parent_dataset/$1")
   fi
 }
 
 set_common_snapshot() {
   for destination_snapshot in "${destination_snapshots[@]}"; do
     for source_snapshot in "${source_snapshots[@]}"; do
-      [[ "${source_snapshot#*/}" == "${destination_snapshot#*/}" ]] && last_snapshot_common=${source_snapshot#*/}
+      [[ "${source_snapshot#*@}" == "${destination_snapshot#*@}" ]] && last_snapshot_common=${source_snapshot#*@}
     done
   done
   [ -v last_snapshot_common ] && return 0 || return 1
@@ -235,7 +235,7 @@ rotate_snapshots() {
     && [[ "${!keep_timestamps[*]}" != *"${snapshot_name:0:8}"* ]] \
     && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
       if [ ! -v last_snapshot_common ] \
-      || [[ "${source_snapshots[i]}" != "$source_pool/$last_snapshot_common" ]] ; then
+      || [[ "${source_snapshots[i]}" != "$dataset@$last_snapshot_common" ]] ; then
         msg "Deleting source snapshot: ${source_snapshots[i]}"
         [ ! -v dry_run ] && zfs destroy -f "${source_snapshots[i]}"
         unset "source_snapshots[i]"
@@ -245,9 +245,9 @@ rotate_snapshots() {
   source_snapshots=("${source_snapshots[@]}")
 }
 
- # todo Update messages for recursive snapshots.
+# todo Update messages for recursive snapshots.
 create_new_snapshot() {
-  local new_snapshot="$source_pool/$dataset_name@$snapshot_prefix$timestamp$snapshot_label"
+  local new_snapshot="$dataset@$snapshot_prefix$timestamp$snapshot_label"
   msg "Creating source snapshot: $new_snapshot"
   if [ ! -v dry_run ]; then
     if ! zfs snapshot $recursive_create "$new_snapshot"; then
@@ -265,24 +265,24 @@ send_initial() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_pool/$dataset_name" && return 1
+      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_parent_dataset/$dataset_name" && return 1
     else
-      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | zfs recv $resume -F -u "$destination_pool/$dataset_name" && return 1
+      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | zfs recv $resume -F -u "$destination_parent_dataset/$dataset_name" && return 1
     fi
   else
     # Simulate a successful send for dry run initial send.
     destination_snapshots+=("$first_snapshot_source")
   fi
   msg "Initial snapshot has been sent."
-  last_snapshot_common="${first_snapshot_source#*/}"
+  last_snapshot_common="${first_snapshot_source#*@}"
 }
 
 send_resume() {
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $verbose -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
+      ! zfs send -w $verbose -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_parent_dataset" && return 1
     else
-      ! zfs send -w $verbose -t "$resume_token" | zfs recv $resume -F -d -u "$destination_pool" && return 1
+      ! zfs send -w $verbose -t "$resume_token" | zfs recv $resume -F -d -u "$destination_parent_dataset" && return 1
     fi
   fi
   msg "The resumed transfer has been successfully completed."
@@ -290,9 +290,9 @@ send_resume() {
 
 send_incremental() {
   local last_snapshot_source=${source_snapshots[-1]}
-  msg "Most recent source snapshot: $last_snapshot_source"
+  msg "Most recent source snapshot: ${last_snapshot_source#*@}"
 
-  if [[ ${last_snapshot_source#*/} == "$last_snapshot_common" ]]; then
+  if [[ ${last_snapshot_source#*@} == "$last_snapshot_common" ]]; then
     msg "Most recent source snapshot '$last_snapshot_common' exists on destination; skipping incremental sending."
     return 1
   fi
@@ -301,9 +301,9 @@ send_incremental() {
   
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $recursive_send $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_pool" && return 1
+      ! zfs send -w $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_parent_dataset" && return 1
     else
-      ! zfs send -w $recursive_send $verbose -I "$source_pool/$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_pool" && return 1
+      ! zfs send -w $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_parent_dataset" && return 1
     fi
   fi
   msg "Incremental changes have been sent."
@@ -319,8 +319,9 @@ function warn_no_common_snapshots() {
 }
 
 process_dataset() {
-  local dataset_name=${1#*/}
-  local source_pool=${1%/$dataset_name*}
+  local dataset="$1"
+  local dataset_name=${dataset##*/}
+  local source_parent_dataset=${dataset%/$dataset_name*}
   source_snapshots=()
   destination_snapshots=()
   unset last_snapshot_common
@@ -330,10 +331,10 @@ process_dataset() {
   msg "*** Processing dataset $1. ***"
   msg
 
-  set_source_snapshots "$source_pool" "$dataset_name"
+  set_source_snapshots "$dataset"
 
   if [ -v send ] && [ ! -v create ] && ((${#source_snapshots[@]} < 1)); then
-    warn "No source snapshots of dataset $dataset_name found. Use the --create-snapshot|-c flag to create a snapshot."
+    warn "No source snapshots of dataset $dataset found. Use the --create-snapshot|-c flag to create a snapshot."
     return 1
   fi
 
@@ -351,7 +352,7 @@ process_dataset() {
   [ ! -v send ] && return 0
   
   # Set resume token.
-  [ -v resume ] && set_resume_token "$destination_pool/$dataset_name"
+  [ -v resume ] && set_resume_token "$destination_parent_dataset/$dataset_name"
 
   if [ -v resume_token ]; then
     # Resume send & consecutive send.
@@ -375,8 +376,8 @@ fi
 # Require an operation.
 [ ! -v create ] && [ ! -v remove_old ] && [ ! -v send ] && die "Specify the operation by adding a --create-snapshot|-c, --remove-old|-r, and/or --send|-s flag(s)."
 
-# Require a correct destination pool name specified for --send.
-[ -v destination_pool ] && [[ $destination_pool == */* ]] || [[ $destination_pool == *@* ]] && die "--send|s needs to specify the destination pool name (pool). (Did you provide a dataset instead?)."
+# Require a correct destination dataset name specified for --send.
+[ -v destination_parent_dataset ] && [[ $destination_parent_dataset == *@* ]] && die "--send|s needs to specify the destination dataset name. (Did you provide a snapshot instead?)."
 
 # Allow only letters, numbers and underscores for the snapshot prefix.
 [[ ! $snapshot_prefix =~ ^[A-Za-z0-9_]+$ ]] && die "The snapshot prefix may only contain letters, digits and underscores."
@@ -387,7 +388,7 @@ fi
 datasets=("$@")
 
 # Require dataset names as arguments and validate them.
-((${#datasets[@]} < 1)) && die "One or more source datasets must be present as parameters (pool/dataset pool/dataset2 ...)."
+((${#datasets[@]} < 1)) && die "One or more source datasets must be present as parameters (source/dataset/path1 source/dataset/path2 ...)."
 for dataset in "${datasets[@]}"; do
   validate_dataset "$dataset"
 done
