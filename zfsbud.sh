@@ -278,11 +278,13 @@ send_initial() {
 }
 
 send_resume() {
+  local pool=${destination_parent_dataset%%/*}
+
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $verbose -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_parent_dataset" && return 1
+      ! zfs send -w $verbose -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $pool" && return 1
     else
-      ! zfs send -w $verbose -t "$resume_token" | zfs recv $resume -F -d -u "$destination_parent_dataset" && return 1
+      ! zfs send -w $verbose -t "$resume_token" | zfs recv $resume -F -d -u "$pool" && return 1
     fi
   fi
   msg "The resumed transfer has been successfully completed."
