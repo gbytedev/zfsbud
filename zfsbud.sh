@@ -145,7 +145,7 @@ validate_dataset() {
   set_resume_token "$destination_parent_dataset/$dataset_name"
 
   if [ ! -v resume ] && [ -v resume_token ]; then
-    die "--no-resume|-n was specified for '$destination_parent_dataset/$dataset_name', but the destination only accepts a resumable stream. (Did you mean to exclude the --no-resume|-n flag?)"
+    die "--no-resume|-n was specified for '$destination_parent_dataset/$dataset_name', but the destination only accepts a resumable stream. (Did you mean to exclude the --no-resume|-n flag? Otherwise you can cancel the transfer by running 'zfs receive -A <destination_dataset/path>' on the destination machine.)"
   fi
   
   if [ ! -v resume_token ] && [ ! -v initial ] && ! dataset_exists "$destination_parent_dataset/$dataset_name"; then
