@@ -91,6 +91,7 @@ for arg in "$@"; do
   -R | --recursive)
     recursive_send="-R"
     recursive_create="-r"
+    recursive_destroy="-r"
     shift
     ;;
   -n | --no-resume)
@@ -252,7 +253,7 @@ rotate_snapshots() {
       if [ ! -v last_snapshot_common ] \
       || [[ "${source_snapshots[i]}" != "$dataset@$last_snapshot_common" ]] ; then
         msg "Deleting source snapshot: ${source_snapshots[i]}"
-        [ ! -v dry_run ] && zfs destroy -f "${source_snapshots[i]}"
+        [ ! -v dry_run ] && zfs destroy $recursive_destroy -f "${source_snapshots[i]}"
         unset "source_snapshots[i]"
       fi
     fi
