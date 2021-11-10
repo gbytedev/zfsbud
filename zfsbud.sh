@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 PATH=/usr/bin:/sbin:/bin
+trap "exit 1" TERM
+export TOP_PID=$$
 readonly timestamp_format="%Y%m%d%H%M%S"
 timestamp=$(date "+$timestamp_format")
 readonly timestamp
@@ -13,7 +15,7 @@ resume="-s"
 
 msg() { echo "$*" 1>&2; }
 warn() { msg "WARNING: $*"; }
-die() { msg "ERROR: $*"; exit 1; }
+die() { msg "ERROR: $*"; kill -s TERM $TOP_PID; }
 
 help() {
     echo "Usage: $(basename "$0") [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]"
@@ -117,6 +119,22 @@ for arg in "$@"; do
   esac
 done
 
+config_read_file() {
+  (grep -E "^${2}=" -m 1 "${1}" 2>/dev/null || echo "VAR=__UNDEFINED__") | head -n 1 | cut -d '=' -f 2-;
+}
+
+config_get() {
+  working_dir="$(dirname "$(readlink -f "$0")")"
+  val="$(config_read_file $working_dir/zfsbud.conf "${1}")";
+  if [ "${val}" = "__UNDEFINED__" ]; then
+    val="$(config_read_file $working_dir/default.zfsbud.conf "${1}")";
+    if [ "${val}" = "__UNDEFINED__" ]; then
+      die "Default configuration file 'default.zfsbud.conf' is missing or corrupt."
+    fi
+  fi
+  printf -- "%s" "${val}";
+}
+
 dataset_exists() {
   if [ -v remote_shell ]; then
     $remote_shell "zfs list -H -o name" | grep -qx "$1" && return 0
@@ -157,21 +175,19 @@ validate_dataset() {
   fi
 }
 
-# Get timestamps of 8 daily, 5 weekly (every sunday), 13 monthly (first sunday
-# of every month) and 6 yearly (first sunday of every year) snapshots to be kept.
 set_timestamps_to_keep() {
   (( ${#keep_timestamps[@]} )) && return 0 # Perform function once.
 
-  for i in {0..7}; do ((keep_timestamps[$(date +%Y%m%d -d "-$i day")]++)); done
-  for i in {0..4}; do ((keep_timestamps[$(date +%Y%m%d -d "sunday-$((i + 1)) week")]++)); done
-  for i in {0..12}; do
+  for (( i=0; i<=$(config_get daily)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d -d "-$i day")]++)); done
+  for (( i=0; i<=$(config_get weekly)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d -d "sunday-$((i + 1)) week")]++)); done
+  for (( i=0; i<=$(config_get monthly)-1; i++ )); do
     DW=$(($(date +%-W) - $(date -d "$(date -d "$(date +%Y-%m-15) -$i month" +%Y-%m-01)" +%-W)))
     for ((AY = $(date -d "$(date +%Y-%m-15) -$i month" +%Y); AY < $(date +%Y); AY++)); do
       ((DW += $(date -d "$AY"-12-31 +%W)))
     done
     ((keep_timestamps[$(date +%Y%m%d -d "sunday-$DW weeks")]++))
   done
-  for i in {0..5}; do
+  for (( i=0; i<=$(config_get yearly)-1; i++ )); do
     DW=$(date +%-W)
     for ((AY = $(($(date +%Y) - i)); AY < $(date +%Y); AY++)); do
       ((DW += $(date -d "$AY"-12-31 +%W)))

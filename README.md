@@ -8,7 +8,7 @@ The script tries to be smart about things like automatically resuming a stream c
 
 The following operations are possible:
 - Creation of a snapshot of one or multiple datasets
-- Rotation (selective deletion) of older snapshots of one or multiple datasets while keeping 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots
+- Rotation (selective deletion) of older snapshots of one or multiple datasets while keeping 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots (snapshot retention can be configured in the configuration file)
 - Resumable sending/replication of one or multiple datasets to a local or remote location through ZFS send
 - Smart/automatic handling of initial & consecutive send operations
 - Optional recursive dataset creation and sending
@@ -30,7 +30,7 @@ Here are some usage examples.
 `zfsbud.sh --remove-old dataset/path1`
 - `--remove-old|-r` removes snapshots created by this script only
 - If you created snapshots with a customized snapshot prefix, make sure to pass that prefix like so `--snapshot prefix|-p <cute_prefix_>`
-- In addition to the newest snapshot, the most recent common snapshot, as well as 8 daily, 5 weekly, 13 monthly and 6 yearly snapshots are kept.
+- In addition to the newest snapshot and (in case the `--send|-s` flag is passed) the most recent common snapshot, snapshots are kept according to the snapshot retention policy defined in the configuration file.
 
 ### Initial sending of a dataset to a remote
 `zfsbud.sh --send destination_parent_dataset/path --initial --rsh "ssh user@server -p22" dataset/path1`
@@ -75,7 +75,7 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
  -e, --rsh <'ssh user@server -p22'>           send to remote destination by providing ssh connection string (requires --send)
  -c, --create-snapshot [label]                create a timestamped snapshot on source with an optional label
  -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)
- -r, --remove-old                             remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots
+ -r, --remove-old                             remove old snapshots according to the policy defined in the configuration file
  -d, --dry-run                                show output without making actual changes
  -p, --snapshot-prefix <prefix>               use a snapshot prefix other than 'zfsbud_'
  -v, --verbose                                increase verbosity
@@ -85,7 +85,6 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
 ```
 
 ## ToDo
-- Make the snapshot lifetime adjustable for rotation.
 - Resume stream dynamically in recursive sends on a per dataset basis. At the moment, during a recursive send operation, if sending of a child dataset was interrupted, that dataset has to be sent again with zfsbud. The script will then resume the sending of that dataset autonomously. A better way of handling that would be just repeating the previous operation and letting zfsbud check if there is a resume token for each recursively sent dataset.
 
 ## Caution
