@@ -23,13 +23,13 @@ Here are some usage examples.
 `zfsbud.sh --create-snapshot some_label dataset/path1`
 - `--create-snapshot|-c [label]` creates a snapshot for each dataset with the following name: `dataset/path@zfsbud_YYYYMMDDHHMMSS_some_label`
 - The label is optional.
-- Snapshot name prefix (default: `zfsbud_`) can be overridden with `--snapshot-prefix|-p <cute_prefix_>`.
+- Snapshot name prefix (default: `zfsbud_`) can be overridden during runtime with `--snapshot-prefix|-p <cute_prefix_>`, or permanently in the configuration file.
 - To snapshot recursively, add `--recursive|-R`.
 
 ### Rotating/deleting of a dataset's snapshots made with this script
 `zfsbud.sh --remove-old dataset/path1`
 - `--remove-old|-r` removes snapshots created by this script only
-- If you created snapshots with a customized snapshot prefix, make sure to pass that prefix like so `--snapshot prefix|-p <cute_prefix_>`
+- If you created snapshots with a prefix that is not defined in the configuration file, make sure to pass that prefix like so `--snapshot prefix|-p <cute_prefix_>`
 - In addition to the newest snapshot and (in case the `--send|-s` flag is passed) the most recent common snapshot, snapshots are kept according to the snapshot retention policy defined in the configuration file.
 
 ### Initial sending of a dataset to a remote
@@ -77,7 +77,7 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
  -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)
  -r, --remove-old                             remove old snapshots according to the policy defined in the configuration file
  -d, --dry-run                                show output without making actual changes
- -p, --snapshot-prefix <prefix>               use a snapshot prefix other than 'zfsbud_'
+ -p, --snapshot-prefix <prefix>               use a snapshot prefix other than the one defined in the configuration file
  -v, --verbose                                increase verbosity
  -l, --log                                    log to user's home directory
  -L, --log-path </path/to/file>               provide path to log file (implies --log)
