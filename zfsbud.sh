@@ -8,6 +8,7 @@ timestamp=$(date "+$timestamp_format")
 readonly timestamp
 log_file="$HOME/$(basename "$0").log"
 keep_timestamps=()
+kept_timestamps=()
 resume="-s"
 
 msg() { echo "$*" 1>&2; }
@@ -177,6 +178,7 @@ validate_dataset() {
 set_timestamps_to_keep() {
   (( ${#keep_timestamps[@]} )) && return 0 # Perform function once.
 
+  for (( i=0; i<=$(config_get hourly)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d%H -d "-$i hour")]++)); done
   for (( i=0; i<=$(config_get daily)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d -d "-$i day")]++)); done
   for (( i=0; i<=$(config_get weekly)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d -d "sunday-$((i + 1)) week")]++)); done
   for (( i=0; i<=$(config_get monthly)-1; i++ )); do
@@ -193,6 +195,21 @@ set_timestamps_to_keep() {
     done
     ((keep_timestamps[$(date +%Y%m%d -d "sunday-$DW weeks")]++))
   done
+}
+
+keep_snapshot?() {
+  for ts in "${!keep_timestamps[@]}"; do
+    if [[ $1 == "$ts"* ]]; then
+      if ((${kept_timestamps[$ts]})); then
+        # already kept one snapshot matching this timestamp, so don't keep any others,
+        # however, this snapshot might match other desired timestamps, so keep going
+        continue
+      fi
+      let kept_timestamps[$ts]++
+      return 0
+    fi
+  done
+  return 1
 }
 
 get_local_snapshots() {
@@ -241,13 +258,14 @@ set_resume_token() {
 
 rotate_snapshots() {
   set_timestamps_to_keep
+  kept_timestamps=()
   for i in "${!source_snapshots[@]}"; do
     # Remove all snapshots prefixed accordingly and not matching the
     # keep_timestamps pattern; always keep the most recent snapshot and the last
     # common snapshot.
-    snapshot_name=${source_snapshots[i]#*"@$snapshot_prefix"}
+    snapshot_timestamp=${source_snapshots[i]#*"@$snapshot_prefix"}
     if [[ "${source_snapshots[i]}" == *"@$snapshot_prefix"* ]] \
-    && [[ "${!keep_timestamps[*]}" != *"${snapshot_name:0:8}"* ]] \
+    && ! keep_snapshot? $snapshot_timestamp \
     && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
       if [ ! -v last_snapshot_common ] \
       || [[ "${source_snapshots[i]}" != "$dataset@$last_snapshot_common" ]] ; then
