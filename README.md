@@ -29,6 +29,7 @@ Here are some usage examples.
 ### Rotating/deleting of a dataset's snapshots made with this script
 `zfsbud.sh --remove-old dataset/path1`
 - `--remove-old|-r` removes snapshots created by this script only
+- To delete recursively, add `--recursive|-R`.
 - If you created snapshots with a prefix that is not defined in the configuration file, make sure to pass that prefix like so `--snapshot prefix|-p <cute_prefix_>`
 - In addition to the newest snapshot and (in case the `--send|-s` flag is passed) the most recent common snapshot, snapshots are kept according to the snapshot retention policy defined in the configuration file.
 
