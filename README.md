@@ -75,7 +75,7 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
  -n, --no-resume                              do not create resumable streams and do not resume streams (requires --send)
  -e, --rsh <'ssh user@server -p22'>           send to remote destination by providing ssh connection string (requires --send)
  -c, --create-snapshot [label]                create a timestamped snapshot on source with an optional label
- -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)
+ -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send, --create-snapshot, or --remove-old)
  -r, --remove-old                             remove old snapshots according to the policy defined in the configuration file
  -d, --dry-run                                show output without making actual changes
  -p, --snapshot-prefix <prefix>               use a snapshot prefix other than the one defined in the configuration file
