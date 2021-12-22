@@ -433,7 +433,7 @@ done
 [ ! -v send ] && [ -v initial ] && warn "The --initial|-i flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ ! -v resume ] && warn "The --no-resume|-n flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ -v remote_shell ] && warn "The --rsh|-e flag will be ignored, as there is no need for specifying a remote shell connection when not sending. (Did you mean to include the --send|-s flag?)"
-[ ! -v send ] && [ ! -v create ] && [ -v recursive_send ] && warn "The --recursive|-R flag will be ignored, as sending or creating snapshot was not specified. (Did you mean to include the --send|-s or --create-snapshot|-c flag?)"
+[ ! -v send ] && [ ! -v create ] && [ ! -v remove_old ] && [ -v recursive_send ] && warn "The --recursive|-R flag will be ignored, as sending, creating, or removing a snapshot was not specified. (Did you mean to include the --send|-s, --create-snapshot|-c, or --remove-old|-r flag?)"
 [ -v log ] && [ -v verbose ] && [ -v initial ] && warn "Verbose logging during the initial send may produce big log files. Consider excluding the --log|-l and --log-path|-L flags or the --verbose|-v flag."
 
 # Process each dataset.
