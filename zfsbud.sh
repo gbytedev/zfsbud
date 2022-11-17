@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-PATH=/usr/bin:/sbin:/bin
+PATH=$PATH:/usr/bin:/sbin:/bin
 trap "exit 1" TERM
 export TOP_PID=$$
 readonly timestamp_format="%Y%m%d%H%M%S"
