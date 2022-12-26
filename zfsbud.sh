@@ -328,7 +328,7 @@ send_incremental() {
   local last_snapshot_source=${source_snapshots[-1]}
   msg "Most recent source snapshot: ${last_snapshot_source#*@}"
 
-  if [[ ${last_snapshot_source#*@} == "$last_snapshot_common" ]]; then
+  if [[ ! -v recursive_send ]] && [[ ${last_snapshot_source#*@} == "$last_snapshot_common" ]]; then
     msg "Most recent source snapshot '$last_snapshot_common' exists on destination; skipping incremental sending."
     return 1
   fi
@@ -435,6 +435,7 @@ done
 [ ! -v send ] && [ -v remote_shell ] && warn "The --rsh|-e flag will be ignored, as there is no need for specifying a remote shell connection when not sending. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ ! -v create ] && [ ! -v remove_old ] && [ -v recursive_send ] && warn "The --recursive|-R flag will be ignored, as sending, creating, or removing a snapshot was not specified. (Did you mean to include the --send|-s, --create-snapshot|-c, or --remove-old|-r flag?)"
 [ -v log ] && [ -v verbose ] && [ -v initial ] && warn "Verbose logging during the initial send may produce big log files. Consider excluding the --log|-l and --log-path|-L flags or the --verbose|-v flag."
+[ -v dry_run ] && [ -v recursive_send ] && warn "Dry run (--dry-run|-d) cannot simulate recursive sending/creating/removing of snapshots (--recursive|-R)."
 
 # Process each dataset.
 for dataset in "${datasets[@]}"; do
