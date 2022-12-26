@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
 
 PATH=$PATH:/usr/bin:/sbin:/bin
+
 trap "exit 1" TERM
 export TOP_PID=$$
-readonly timestamp_format="%Y%m%d%H%M%S"
-timestamp=$(date "+$timestamp_format")
-readonly timestamp
-log_file="$HOME/$(basename "$0").log"
-keep_timestamps=()
-kept_timestamps=()
-resume="-s"
 
 msg() { echo "$*" 1>&2; }
 warn() { msg "WARNING: $*"; }
@@ -31,8 +25,6 @@ config_get() {
   printf -- "%s" "${val}";
 }
 
-snapshot_prefix=$(config_get default_snapshot_prefix)
-
 help() {
     echo "Usage: $(basename "$0") [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]"
     echo
@@ -51,6 +43,17 @@ help() {
     echo " -h, --help                                   show this help"
     exit 0
 }
+
+# Initial variables.
+DATECMD=date
+readonly timestamp_format="%Y%m%d%H%M%S"
+timestamp=$($DATECMD "+$timestamp_format")
+readonly timestamp
+log_file="$HOME/$(basename "$0").log"
+snapshot_prefix=$(config_get default_snapshot_prefix)
+keep_timestamps=()
+kept_timestamps=()
+resume="-s"
 
 for arg in "$@"; do
   case $arg in
@@ -179,22 +182,25 @@ validate_dataset() {
 set_timestamps_to_keep() {
   (( ${#keep_timestamps[@]} )) && return 0 # Perform function once.
 
-  for (( i=0; i<=$(config_get hourly)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d%H -d "-$i hour")]++)); done
-  for (( i=0; i<=$(config_get daily)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d -d "-$i day")]++)); done
-  for (( i=0; i<=$(config_get weekly)-1; i++ )); do ((keep_timestamps[$(date +%Y%m%d -d "sunday-$((i + 1)) week")]++)); done
+  # Using $DATECMD instead of `date` because some versions of `date` do not support the `-d` option;
+  # using the $DATECMD variable, one can set a different `date` path/binary, e.g. GNU `date`;
+  # this might be useful on non-GNU systems such as Solaris.
+  for (( i=0; i<=$(config_get hourly)-1; i++ )); do ((keep_timestamps[$($DATECMD +%Y%m%d%H -d "-$i hour")]++)); done
+  for (( i=0; i<=$(config_get daily)-1; i++ )); do ((keep_timestamps[$($DATECMD +%Y%m%d -d "-$i day")]++)); done
+  for (( i=0; i<=$(config_get weekly)-1; i++ )); do ((keep_timestamps[$($DATECMD +%Y%m%d -d "sunday-$((i + 1)) week")]++)); done
   for (( i=0; i<=$(config_get monthly)-1; i++ )); do
-    DW=$(($(date +%-W) - $(date -d "$(date -d "$(date +%Y-%m-15) -$i month" +%Y-%m-01)" +%-W)))
-    for ((AY = $(date -d "$(date +%Y-%m-15) -$i month" +%Y); AY < $(date +%Y); AY++)); do
-      ((DW += $(date -d "$AY"-12-31 +%W)))
+    DW=$(($($DATECMD +%-W) - $($DATECMD -d "$($DATECMD -d "$($DATECMD +%Y-%m-15) -$i month" +%Y-%m-01)" +%-W)))
+    for ((AY = $($DATECMD -d "$($DATECMD +%Y-%m-15) -$i month" +%Y); AY < $($DATECMD +%Y); AY++)); do
+      ((DW += $($DATECMD -d "$AY"-12-31 +%W)))
     done
-    ((keep_timestamps[$(date +%Y%m%d -d "sunday-$DW weeks")]++))
+    ((keep_timestamps[$($DATECMD +%Y%m%d -d "sunday-$DW weeks")]++))
   done
   for (( i=0; i<=$(config_get yearly)-1; i++ )); do
-    DW=$(date +%-W)
-    for ((AY = $(($(date +%Y) - i)); AY < $(date +%Y); AY++)); do
-      ((DW += $(date -d "$AY"-12-31 +%W)))
+    DW=$($DATECMD +%-W)
+    for ((AY = $(($($DATECMD +%Y) - i)); AY < $($DATECMD +%Y); AY++)); do
+      ((DW += $($DATECMD -d "$AY"-12-31 +%W)))
     done
-    ((keep_timestamps[$(date +%Y%m%d -d "sunday-$DW weeks")]++))
+    ((keep_timestamps[$($DATECMD +%Y%m%d -d "sunday-$DW weeks")]++))
   done
 }
 
