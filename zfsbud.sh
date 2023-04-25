@@ -96,6 +96,7 @@ for arg in "$@"; do
     recursive_send="-R"
     recursive_create="-r"
     recursive_destroy="-r"
+    recursive_hold="-r"
     shift
     ;;
   -n | --no-resume)
@@ -276,8 +277,14 @@ rotate_snapshots() {
     && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
       if [ ! -v last_snapshot_common ] \
       || [[ "${source_snapshots[i]}" != "$dataset@$last_snapshot_common" ]] ; then
-        msg "Deleting source snapshot: ${source_snapshots[i]}"
-        [ ! -v dry_run ] && zfs destroy $recursive_destroy -f "${source_snapshots[i]}"
+        # Do not delete held snapshots
+        zfs holds $recursive_hold -H ${source_snapshots[i]} | grep "keep"
+        if [ $? -eq 0 ]; then
+          msg "Deleting source snapshot: ${source_snapshots[i]} <<--- on hold"
+        else
+          msg "Deleting source snapshot: ${source_snapshots[i]}"
+          [ ! -v dry_run ] && zfs destroy $recursive_destroy -f "${source_snapshots[i]}"
+        fi
         unset "source_snapshots[i]"
       fi
     fi
@@ -315,6 +322,15 @@ send_initial() {
   fi
   msg "Initial snapshot has been sent."
   last_snapshot_common="${first_snapshot_source#*@}"
+  # keep on hold both source and destination replication snapshots to prevent even accidental deletion  
+  if [ ! -v dry_run ]; then
+    zfs hold $recursive_hold keep $first_snapshot_source
+    if [ -v remote_shell ]; then
+      $remote_shell "zfs hold $recursive_hold keep $destination_parent_dataset/$dataset_name@$last_snapshot_common"
+    else
+      zfs hold $recursive_hold keep $destination_parent_dataset/$dataset_name@$last_snapshot_common
+    fi
+  fi
 }
 
 send_resume() {
@@ -340,7 +356,7 @@ send_incremental() {
   fi
   msg "Most recent common snapshot: $last_snapshot_common"
   msg "Sending incremental changes to destination..."
-  
+
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
       ! zfs send -w $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_parent_dataset" && return 1
@@ -348,6 +364,20 @@ send_incremental() {
       ! zfs send -w $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_parent_dataset" && return 1
     fi
   fi
+
+  # release hold from last common snapshots and hold on new latest snapshots
+  if [ ! -v dry_run ]; then
+    zfs release $recursive_hold keep $dataset@$last_snapshot_common
+    zfs hold $recursive_hold keep $dataset@${last_snapshot_source#*@}
+    if [ -v remote_shell ]; then
+      $remote_shell "zfs release $recursive_hold keep $destination_parent_dataset/$dataset_name@$last_snapshot_common"
+      $remote_shell "zfs hold $recursive_hold keep $destination_parent_dataset/$dataset_name@${last_snapshot_source#*@}"
+    else
+      zfs release $recursive_hold keep $destination_parent_dataset/$dataset_name@$last_snapshot_common
+      zfs hold $recursive_hold keep $destination_parent_dataset/$dataset_name@${last_snapshot_source#*@}
+    fi
+  fi
+
   msg "Incremental changes have been sent."
 }
 
