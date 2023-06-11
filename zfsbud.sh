@@ -412,7 +412,8 @@ process_dataset() {
 # Start logging if instructed.
 if [ -v log ]; then
   ! (touch "$log_file") && die "Unable to create log file '$log_file'."
-  exec > >(tee "$log_file") 2>&1
+  printf "\n### %(%Y-%m-%d %H:%M:%S)T\n" $EPOCHSECONDS >> "$log_file"
+  exec > >(tee -a "$log_file") 2>&1
 fi
 
 # Require an operation.
