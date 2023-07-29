@@ -14,12 +14,19 @@ config_read_file() {
 }
 
 config_get() {
-  working_dir="$(dirname "$(readlink -f "$0")")"
-  val="$(config_read_file $working_dir/zfsbud.conf "${1}")";
-  if [ "${val}" = "__UNDEFINED__" ]; then
-    val="$(config_read_file $working_dir/default.zfsbud.conf "${1}")";
+  if [ -v custom_config ]; then 
+      val="$(config_read_file "$custom_config_path" "${1}")";
+      if [ "${val}" = "__UNDEFINED__" ]; then
+        die "Custom config configuration file $custom_config_path is missing or corrupt."
+      fi
+  else
+    working_dir="$(dirname "$(readlink -f "$0")")"
+    val="$(config_read_file $working_dir/zfsbud.conf "${1}")";
     if [ "${val}" = "__UNDEFINED__" ]; then
-      die "Default configuration file 'default.zfsbud.conf' is missing or corrupt."
+      val="$(config_read_file $working_dir/default.zfsbud.conf "${1}")";
+      if [ "${val}" = "__UNDEFINED__" ]; then
+        die "Default configuration file 'default.zfsbud.conf' is missing or corrupt."
+      fi
     fi
   fi
   printf -- "%s" "${val}";
@@ -37,6 +44,7 @@ help() {
     echo " -r, --remove-old                             remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
     echo " -d, --dry-run                                show output without making actual changes"
     echo " -p, --snapshot-prefix <prefix>               use a snapshot prefix other than 'zfsbud_'"
+    echo " -C, --custom-config </path/to/file>          custom config file"
     echo " -v, --verbose                                increase verbosity"
     echo " -l, --log                                    log to user's home directory"
     echo " -L, --log-path </path/to/file>               provide path to log file (implies --log)"
@@ -65,8 +73,19 @@ for arg in "$@"; do
     fi
     shift
     ;;
+  -C | --custom-config)
+    if [ "$2" ] && [[ $2 != -* ]]; then
+      custom_config=1
+      custom_config_path=$2
+      shift
+      shift
+    else
+      die "--custom-config|-C requires a path string as argument."
+    fi
+    ;;
   -p | --snapshot-prefix)
     if [ "$2" ] && [[ $2 != -* ]]; then
+      custom_snapshot_prefix=1
       snapshot_prefix=$2
       shift
       shift
@@ -138,6 +157,8 @@ for arg in "$@"; do
     die "Invalid option '$1' Try '$(basename "$0") --help' for more information." ;;
   esac
 done
+
+[ -v custom_config ] && [ ! -v custom_snapshot_prefix ] && snapshot_prefix=$(config_get default_snapshot_prefix)
 
 dataset_exists() {
   if [ -v remote_shell ]; then

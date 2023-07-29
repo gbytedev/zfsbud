@@ -79,6 +79,7 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
  -r, --remove-old                             remove old snapshots according to the policy defined in the configuration file
  -d, --dry-run                                show output without making actual changes
  -p, --snapshot-prefix <prefix>               use a snapshot prefix other than the one defined in the configuration file
+ -C, --custom-config </path/to/file>          custom config file
  -v, --verbose                                increase verbosity
  -l, --log                                    log to user's home directory
  -L, --log-path </path/to/file>               provide path to log file (implies --log)
