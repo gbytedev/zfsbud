@@ -224,7 +224,7 @@ get_local_snapshots() {
 }
 
 get_remote_snapshots() {
-  $remote_shell "zfs list -H -o name -t snapshot $1 | grep $1@"
+  $remote_shell "zfs list -H -o name -t snapshot $1" | grep "$1@"
 }
 
 set_source_snapshots() {
