@@ -141,9 +141,9 @@ done
 
 dataset_exists() {
   if [ -v remote_shell ]; then
-    $remote_shell "zfs list -H -o name $1" | grep -qx "$1" && return 0
+    $remote_shell "zfs list -H -o name $1" 2>/dev/null | grep -qx "$1" && return 0
   else
-    zfs list -H -o name $1 | grep -qx "$1" && return 0
+    zfs list -H -o name $1 2>/dev/null | grep -qx "$1" && return 0
   fi
   return 1
 }
@@ -220,11 +220,11 @@ keep_snapshot?() {
 }
 
 get_local_snapshots() {
-  zfs list -H -o name -t snapshot $1 | grep "$1@"
+  zfs list -H -o name -t snapshot $1 2>/dev/null | grep "$1@"
 }
 
 get_remote_snapshots() {
-  $remote_shell "zfs list -H -o name -t snapshot $1" | grep "$1@"
+  $remote_shell "zfs list -H -o name -t snapshot $1" 2>/dev/null | grep "$1@"
 }
 
 set_source_snapshots() {
