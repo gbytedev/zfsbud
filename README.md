@@ -61,6 +61,7 @@ Here are some usage examples.
 ### Logging
 - To log, add `--log|-l` or `--log-path|-L </path/to/file>`
 - To add verbosity, add `--verbose|-v`.
+- To silence messages, add `--quiet|-q`.
 
 ### Dry run
 To see the output of what would happen without making actual changes, add `--dry-run|-d`. This is highly recommended before any new utilization of this script.
@@ -80,6 +81,7 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
  -d, --dry-run                                show output without making actual changes
  -p, --snapshot-prefix <prefix>               use a snapshot prefix other than the one defined in the configuration file
  -v, --verbose                                increase verbosity
+ -q, --quiet                                  decrease verbosity
  -l, --log                                    log to user's home directory
  -L, --log-path </path/to/file>               provide path to log file (implies --log)
  -h, --help                                   show this help
