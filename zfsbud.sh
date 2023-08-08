@@ -5,9 +5,9 @@ PATH=$PATH:/usr/bin:/sbin:/bin
 trap "exit 1" TERM
 export TOP_PID=$$
 
-msg() { echo "$*" 1>&2; }
-warn() { msg "WARNING: $*"; }
-die() { msg "ERROR: $*"; kill -s TERM $TOP_PID; }
+msg() { [ -v quiet ] || echo "$*"; }
+warn() { echo "WARNING: $*" 1>&2; }
+die() { echo "ERROR: $*" 1>&2; kill -s TERM $TOP_PID; }
 
 config_read_file() {
   (grep -E "^${2}=" -m 1 "${1}" 2>/dev/null || echo "VAR=__UNDEFINED__") | head -n 1 | cut -d '=' -f 2-;
@@ -38,6 +38,7 @@ help() {
     echo " -d, --dry-run                                show output without making actual changes"
     echo " -p, --snapshot-prefix <prefix>               use a snapshot prefix other than 'zfsbud_'"
     echo " -v, --verbose                                increase verbosity"
+    echo " -q, --quiet                                  decrease verbosity"
     echo " -l, --log                                    log to user's home directory"
     echo " -L, --log-path </path/to/file>               provide path to log file (implies --log)"
     echo " -h, --help                                   show this help"
@@ -113,6 +114,10 @@ for arg in "$@"; do
     ;;
   -v | --verbose)
     verbose="-v"
+    shift
+    ;;
+  -q | --quiet)
+    quiet="-q"
     shift
     ;;
   -l | --log)
