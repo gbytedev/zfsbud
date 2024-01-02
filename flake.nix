@@ -8,6 +8,7 @@
   outputs = { self, nixpkgs }: {
     packages.x86_64-linux.zfsbud = nixpkgs.legacyPackages.x86_64-linux.stdenv.mkDerivation {
       pname = "zfsbud";
+      version = "master";
       src = self;
       buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.bash ];
       dontBuild = true;
@@ -19,6 +20,6 @@
       '';
     };
 
-    defaultPackage.x86_64-linux = self.packages.x86_64-linux.zfsbud;
+    packages.x86_64-linux.default = self.packages.x86_64-linux.zfsbud;
   };
 } 
