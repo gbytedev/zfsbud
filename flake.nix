@@ -15,8 +15,6 @@
       installPhase = ''
         install -D zfsbud.sh $out/bin/zfsbud
         install -D default.zfsbud.conf $out/bin/default.zfsbud.conf
-        wrapProgram $out/bin/zfsbud \
-          --prefix PATH : ${nixpkgs.lib.makeBinPath [ /* list of dependencies */ ]}
       '';
     };
 
