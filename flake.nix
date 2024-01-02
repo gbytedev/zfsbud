@@ -12,9 +12,9 @@
       buildInputs = [ nixpkgs.legacyPackages.x86_64-linux.bash ];
       dontBuild = true;
       installPhase = ''
-        install -D ${pname}.sh $out/bin/${pname}
+        install -D zfsbud.sh $out/bin/zfsbud
         install -D default.zfsbud.conf $out/bin/default.zfsbud.conf
-        wrapProgram $out/bin/${pname} \
+        wrapProgram $out/bin/zfsbud \
           --prefix PATH : ${nixpkgs.lib.makeBinPath [ /* list of dependencies */ ]}
       '';
     };
