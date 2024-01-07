@@ -26,21 +26,32 @@ config_get() {
 }
 
 help() {
-  echo "Usage: $(basename "$0") [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]"
-  echo
-  echo " -s, --send <destination_parent_dataset/path> send source dataset incrementally to specified destination"
-  echo " -i, --initial                                initially clone source dataset to destination (requires --send)"
-  echo " -n, --no-resume                              do not create resumable streams and do not resume streams (requires --send)"
-  echo " -e, --rsh <'ssh user@server -p22'>           send to remote destination by providing ssh connection string (requires --send)"
-  echo " -c, --create-snapshot [label]                create a timestamped snapshot on source with an optional label"
-  echo " -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)"
-  echo " -r, --remove-old                             remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
-  echo " -d, --dry-run                                show output without making actual changes"
-  echo " -p, --snapshot-prefix <prefix>               use a snapshot prefix other than 'zfsbud_'"
-  echo " -v, --verbose                                increase verbosity"
-  echo " -l, --log                                    log to user's home directory"
-  echo " -L, --log-path </path/to/file>               provide path to log file (implies --log)"
-  echo " -h, --help                                   show this help"
+  cat <<EOHELP
+Usage: $(basename "$0") [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
+
+ -s, --send <DEST_PARENT_DATASET/path> Send source dataset incrementally
+                                       to specified destination
+ -i, --initial                         Initially clone source dataset to
+                                       destination (requires --send)
+ -n, --no-resume                       Do not create resumable streams and do
+                                       not resume streams (requires --send)
+ -e, --rsh <'ssh user@server -p22'>    Send to remote destination by providing
+                                       ssh connection string (requires --send)
+ -c, --create-snapshot [LABEL]         Create a timestamped snapshot on source
+                                       with an optional LABEL
+ -R, --recursive                       Send or snapshot dataset recursively
+                                       along with child datasets
+                                       (requires --send or --create-snapshot)
+ -r, --remove-old                      Remove all but the most recent, the last
+                                       common (if sending), 8 daily, 5 weekly,
+                                       13 monthly and 6 yearly source snapshots
+ -d, --dry-run                         Show output without making actual changes
+ -p, --snapshot-prefix PREFIX          Use a snapshot prefix other than 'zfsbud_'
+ -v, --verbose                         Increase verbosity
+ -l, --log                             Log to user's home directory
+ -L, --log-path PATH_TO_LOGFILE        Provide path to log file (implies --log)
+ -h, --help                            Show this help
+EOHELP
   exit 0
 }
 
