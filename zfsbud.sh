@@ -26,22 +26,33 @@ config_get() {
 }
 
 help() {
-    echo "Usage: $(basename "$0") [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]"
-    echo
-    echo " -s, --send <destination_parent_dataset/path> send source dataset incrementally to specified destination"
-    echo " -i, --initial                                initially clone source dataset to destination (requires --send)"
-    echo " -n, --no-resume                              do not create resumable streams and do not resume streams (requires --send)"
-    echo " -e, --rsh <'ssh user@server -p22'>           send to remote destination by providing ssh connection string (requires --send)"
-    echo " -c, --create-snapshot [label]                create a timestamped snapshot on source with an optional label"
-    echo " -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)"
-    echo " -r, --remove-old                             remove all but the most recent, the last common (if sending), 8 daily, 5 weekly, 13 monthly and 6 yearly source snapshots"
-    echo " -d, --dry-run                                show output without making actual changes"
-    echo " -p, --snapshot-prefix <prefix>               use a snapshot prefix other than 'zfsbud_'"
-    echo " -v, --verbose                                increase verbosity"
-    echo " -l, --log                                    log to user's home directory"
-    echo " -L, --log-path </path/to/file>               provide path to log file (implies --log)"
-    echo " -h, --help                                   show this help"
-    exit 0
+  cat <<EOHELP
+Usage: $(basename "$0") [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
+
+ -s, --send <DEST_PARENT_DATASET/path> Send source dataset incrementally
+                                       to specified destination
+ -i, --initial                         Initially clone source dataset to
+                                       destination (requires --send)
+ -n, --no-resume                       Do not create resumable streams and do
+                                       not resume streams (requires --send)
+ -e, --rsh <'ssh user@server -p22'>    Send to remote destination by providing
+                                       ssh connection string (requires --send)
+ -c, --create-snapshot [LABEL]         Create a timestamped snapshot on source
+                                       with an optional LABEL
+ -R, --recursive                       Send or snapshot dataset recursively
+                                       along with child datasets
+                                       (requires --send or --create-snapshot)
+ -r, --remove-old                      Remove all but the most recent, the last
+                                       common (if sending), 8 daily, 5 weekly,
+                                       13 monthly and 6 yearly source snapshots
+ -d, --dry-run                         Show output without making actual changes
+ -p, --snapshot-prefix PREFIX          Use a snapshot prefix other than 'zfsbud_'
+ -v, --verbose                         Increase verbosity
+ -l, --log                             Log to user's home directory
+ -L, --log-path PATH_TO_LOGFILE        Provide path to log file (implies --log)
+ -h, --help                            Show this help
+EOHELP
+  exit 0
 }
 
 # Initial variables.
@@ -57,85 +68,85 @@ resume="-s"
 
 for arg in "$@"; do
   case $arg in
-  -c | --create-snapshot)
-    create=1
-    if [ "$2" ] && [[ $2 != -* ]] && [[ $2 != */* ]] ; then
-      snapshot_label="_$2"
+    -c | --create-snapshot)
+      create=1
+      if [ "$2" ] && [[ $2 != -* ]] && [[ $2 != */* ]] ; then
+        snapshot_label="_$2"
+        shift
+      fi
       shift
-    fi
-    shift
-    ;;
-  -p | --snapshot-prefix)
-    if [ "$2" ] && [[ $2 != -* ]]; then
-      snapshot_prefix=$2
+      ;;
+    -p | --snapshot-prefix)
+      if [ "$2" ] && [[ $2 != -* ]]; then
+        snapshot_prefix=$2
+        shift
+        shift
+      else
+        die "--snapshot-prefix|-p requires a prefix string as argument."
+      fi
+      ;;
+    -r | --remove-old)
+      remove_old=1
       shift
+      ;;
+    -s | --send)
+      if [ "$2" ] && [[ $2 != -* ]]; then
+        send=1
+        destination_parent_dataset=$2
+        shift
+        shift
+      else
+        die "--send|-s requires a destination dataset name as parameter."
+      fi
+      ;;
+    -i | --initial)
+      initial=1
       shift
-    else
-      die "--snapshot-prefix|-p requires a prefix string as argument."
-    fi
-    ;;
-  -r | --remove-old)
-    remove_old=1
-    shift
-    ;;
-  -s | --send)
-    if [ "$2" ] && [[ $2 != -* ]]; then
-      send=1
-      destination_parent_dataset=$2
+      ;;
+    -R | --recursive)
+      recursive_send="-R"
+      recursive_create="-r"
+      recursive_destroy="-r"
       shift
+      ;;
+    -n | --no-resume)
+      unset resume
       shift
-    else
-      die "--send|-s requires a destination dataset name as parameter."
-    fi
-    ;;
-  -i | --initial)
-    initial=1
-    shift
-    ;;
-  -R | --recursive)
-    recursive_send="-R"
-    recursive_create="-r"
-    recursive_destroy="-r"
-    shift
-    ;;
-  -n | --no-resume)
-    unset resume
-    shift
-    ;;
-  -e | --rsh)
-    if [ "$2" ] && [[ $2 != -* ]]; then
-      remote_shell=$2
+      ;;
+    -e | --rsh)
+      if [ "$2" ] && [[ $2 != -* ]]; then
+        remote_shell=$2
+        shift
+        shift
+      else
+        die "--rsh|-e requires an argument specifying the remote shell connection."
+      fi
+      ;;
+    -v | --verbose)
+      verbose="-v"
       shift
-      shift
-    else
-      die "--rsh|-e requires an argument specifying the remote shell connection."
-    fi
-    ;;
-  -v | --verbose)
-    verbose="-v"
-    shift
-    ;;
-  -l | --log)
-    log=1
-    shift
-    ;;
-  -L | --log-path)
-    if [ "$2" ] && [[ $2 != -* ]]; then
+      ;;
+    -l | --log)
       log=1
-      log_file=$2
       shift
+      ;;
+    -L | --log-path)
+      if [ "$2" ] && [[ $2 != -* ]]; then
+        log=1
+        log_file=$2
+        shift
+        shift
+      else
+        die "--log-path|-L requires a path to the log file."
+      fi
+      ;;
+    -d | --dry-run)
+      dry_run=1
       shift
-    else
-      die "--log-path|-L requires a path to the log file."
-    fi
-    ;;
-  -d | --dry-run)
-    dry_run=1
-    shift
-    ;;
-  -h | --help) help ;;
-  -?*)
-    die "Invalid option '$1' Try '$(basename "$0") --help' for more information." ;;
+      ;;
+    -h | --help) help ;;
+    -?*)
+      die "Invalid option '$1' Try '$(basename "$0") --help' for more information." ;;
   esac
 done
 
@@ -169,11 +180,11 @@ validate_dataset() {
   if [ ! -v resume ] && [ -v resume_token ]; then
     die "--no-resume|-n was specified for '$destination_parent_dataset/$dataset_name', but the destination only accepts a resumable stream. (Did you mean to exclude the --no-resume|-n flag? Otherwise you can cancel the transfer by running 'zfs receive -A <destination_dataset/path>' on the destination machine.)"
   fi
-  
+
   if [ ! -v resume_token ] && [ ! -v initial ] && ! dataset_exists "$destination_parent_dataset/$dataset_name"; then
     die "Destination dataset '$destination_parent_dataset/$dataset_name' does not exist. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
   fi
-  
+
   if [ ! -v resume_token ] && [ -v initial ] && dataset_exists "$destination_parent_dataset/$dataset_name"; then
     die "Destination dataset '$destination_parent_dataset/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to send an incremental stream by excluding the --initial|-i flag instead?)"
   fi
@@ -251,15 +262,15 @@ set_common_snapshot() {
 
 set_resume_token() {
   ! dataset_exists "$1" && return 0
-  
+
   local token="-"
-  
+
   if [ -v remote_shell ]; then
     token=$($remote_shell "zfs get -H -o value receive_resume_token $1")
   else
     token=$(zfs get -H -o value receive_resume_token "$1")
   fi
-  
+
   [[ $token ]] && [[ $token != "-" ]] && resume_token=$token
 }
 
@@ -272,10 +283,10 @@ rotate_snapshots() {
     # common snapshot.
     snapshot_timestamp=${source_snapshots[i]#*"@$snapshot_prefix"}
     if [[ "${source_snapshots[i]}" == *"@$snapshot_prefix"* ]] \
-    && ! keep_snapshot? $snapshot_timestamp \
-    && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
+      && ! keep_snapshot? $snapshot_timestamp \
+      && [[ "${source_snapshots[i]}" != "${source_snapshots[-1]}" ]] ; then
       if [ ! -v last_snapshot_common ] \
-      || [[ "${source_snapshots[i]}" != "$dataset@$last_snapshot_common" ]] ; then
+        || [[ "${source_snapshots[i]}" != "$dataset@$last_snapshot_common" ]] ; then
         msg "Deleting source snapshot: ${source_snapshots[i]}"
         [ ! -v dry_run ] && zfs destroy $recursive_destroy -f "${source_snapshots[i]}"
         unset "source_snapshots[i]"
@@ -302,7 +313,7 @@ send_initial() {
   local first_snapshot_source=${source_snapshots[0]}
   msg "Initial source snapshot: $first_snapshot_source"
   msg "Sending initial snapshot to destination..."
-  
+
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
       ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_parent_dataset/$dataset_name" && return 1
@@ -340,7 +351,7 @@ send_incremental() {
   fi
   msg "Most recent common snapshot: $last_snapshot_common"
   msg "Sending incremental changes to destination..."
-  
+
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
       ! zfs send -w $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_parent_dataset" && return 1
@@ -392,7 +403,7 @@ process_dataset() {
   ### Send. ###
 
   [ ! -v send ] && return 0
-  
+
   # Set resume token.
   [ -v resume ] && set_resume_token "$destination_parent_dataset/$dataset_name"
 
