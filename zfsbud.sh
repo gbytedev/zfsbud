@@ -141,9 +141,9 @@ done
 
 dataset_exists() {
   if [ -v remote_shell ]; then
-    $remote_shell "zfs list -H -o name" | grep -qx "$1" && return 0
+    $remote_shell "zfs list -H -o name $1" 2>/dev/null | grep -qx "$1" && return 0
   else
-    zfs list -H -o name | grep -qx "$1" && return 0
+    zfs list -H -o name $1 2>/dev/null | grep -qx "$1" && return 0
   fi
   return 1
 }
@@ -158,7 +158,7 @@ validate_dataset() {
   # todo Make it work for pools without datasets?
   [[ $dataset == *@* ]] || [[ $dataset != */* ]] && die "Provided parameters need to be source datasets (source/dataset/path1 source/dataset/path2 ...)."
 
-  ! zfs list -H -o name | grep -qx "$dataset" && die "Source dataset '$dataset' does not exist."
+  ! zfs list -H -o name $dataset | grep -qx "$dataset" && die "Source dataset '$dataset' does not exist."
 
   # Validate sending the dataset.
 
@@ -220,11 +220,11 @@ keep_snapshot?() {
 }
 
 get_local_snapshots() {
-  zfs list -H -o name -t snapshot | grep "$1@"
+  zfs list -H -o name -t snapshot $1 2>/dev/null | grep "$1@"
 }
 
 get_remote_snapshots() {
-  $remote_shell "zfs list -H -o name -t snapshot | grep $1@"
+  $remote_shell "zfs list -H -o name -t snapshot $1" 2>/dev/null | grep "$1@"
 }
 
 set_source_snapshots() {
