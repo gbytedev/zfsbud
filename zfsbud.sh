@@ -31,6 +31,7 @@ help() {
     echo " -s, --send <destination_parent_dataset/path> send source dataset incrementally to specified destination"
     echo " -i, --initial                                initially clone source dataset to destination (requires --send)"
     echo " -n, --no-resume                              do not create resumable streams and do not resume streams (requires --send)"
+    echo " -N, --no-raw                                 do not send a raw stream (don't use zfs send --raw) (requires --send)"
     echo " -e, --rsh <'ssh user@server -p22'>           send to remote destination by providing ssh connection string (requires --send)"
     echo " -c, --create-snapshot [label]                create a timestamped snapshot on source with an optional label"
     echo " -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send or --create-snapshot)"
@@ -54,6 +55,7 @@ snapshot_prefix=$(config_get default_snapshot_prefix)
 keep_timestamps=()
 kept_timestamps=()
 resume="-s"
+raw="-w"
 
 for arg in "$@"; do
   case $arg in
@@ -100,6 +102,10 @@ for arg in "$@"; do
     ;;
   -n | --no-resume)
     unset resume
+    shift
+    ;;
+  -N | --no-raw)
+    unset raw
     shift
     ;;
   -e | --rsh)
@@ -169,11 +175,11 @@ validate_dataset() {
   if [ ! -v resume ] && [ -v resume_token ]; then
     die "--no-resume|-n was specified for '$destination_parent_dataset/$dataset_name', but the destination only accepts a resumable stream. (Did you mean to exclude the --no-resume|-n flag? Otherwise you can cancel the transfer by running 'zfs receive -A <destination_dataset/path>' on the destination machine.)"
   fi
-  
+
   if [ ! -v resume_token ] && [ ! -v initial ] && ! dataset_exists "$destination_parent_dataset/$dataset_name"; then
     die "Destination dataset '$destination_parent_dataset/$dataset_name' does not exist. (Did you mean to send an initial stream by passing the --initial|-i flag instead?)"
   fi
-  
+
   if [ ! -v resume_token ] && [ -v initial ] && dataset_exists "$destination_parent_dataset/$dataset_name"; then
     die "Destination dataset '$destination_parent_dataset/$dataset_name' must not exist, as it will be created during the initial send. (Did you mean to send an incremental stream by excluding the --initial|-i flag instead?)"
   fi
@@ -251,15 +257,15 @@ set_common_snapshot() {
 
 set_resume_token() {
   ! dataset_exists "$1" && return 0
-  
+
   local token="-"
-  
+
   if [ -v remote_shell ]; then
     token=$($remote_shell "zfs get -H -o value receive_resume_token $1")
   else
     token=$(zfs get -H -o value receive_resume_token "$1")
   fi
-  
+
   [[ $token ]] && [[ $token != "-" ]] && resume_token=$token
 }
 
@@ -302,12 +308,12 @@ send_initial() {
   local first_snapshot_source=${source_snapshots[0]}
   msg "Initial source snapshot: $first_snapshot_source"
   msg "Sending initial snapshot to destination..."
-  
+
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_parent_dataset/$dataset_name" && return 1
+      ! zfs send $raw $recursive_send $verbose "$first_snapshot_source" | $remote_shell "zfs recv $resume -F -u $destination_parent_dataset/$dataset_name" && return 1
     else
-      ! zfs send -w $recursive_send $verbose "$first_snapshot_source" | zfs recv $resume -F -u "$destination_parent_dataset/$dataset_name" && return 1
+      ! zfs send $raw $recursive_send $verbose "$first_snapshot_source" | zfs recv $resume -F -u "$destination_parent_dataset/$dataset_name" && return 1
     fi
   else
     # Simulate a successful send for dry run initial send.
@@ -323,9 +329,9 @@ send_resume() {
 
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $verbose -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_resume_parent_dataset" && return 1
+      ! zfs send $raw $verbose -t "$resume_token" | $remote_shell "zfs recv $resume -F -d -u $destination_resume_parent_dataset" && return 1
     else
-      ! zfs send -w $verbose -t "$resume_token" | zfs recv $resume -F -d -u "$destination_resume_parent_dataset" && return 1
+      ! zfs send $raw $verbose -t "$resume_token" | zfs recv $resume -F -d -u "$destination_resume_parent_dataset" && return 1
     fi
   fi
   msg "The resumed transfer has been successfully completed."
@@ -341,12 +347,12 @@ send_incremental() {
   fi
   msg "Most recent common snapshot: $last_snapshot_common"
   msg "Sending incremental changes to destination..."
-  
+
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
-      ! zfs send -w $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_parent_dataset" && return 1
+      ! zfs send $raw $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | $remote_shell "zfs recv $resume -F -d -u $destination_parent_dataset" && return 1
     else
-      ! zfs send -w $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_parent_dataset" && return 1
+      ! zfs send $raw $recursive_send $verbose -I "$dataset@$last_snapshot_common" "$last_snapshot_source" | zfs recv $resume -F -d -u "$destination_parent_dataset" && return 1
     fi
   fi
   msg "Incremental changes have been sent."
@@ -440,6 +446,7 @@ done
 # Warn about potentially erroneous options.
 [ ! -v send ] && [ -v initial ] && warn "The --initial|-i flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ ! -v resume ] && warn "The --no-resume|-n flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
+[ ! -v send ] && [ ! -v raw ] && warn "The --no-raw|-N flag will be ignored, as sending was not specified. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ -v remote_shell ] && warn "The --rsh|-e flag will be ignored, as there is no need for specifying a remote shell connection when not sending. (Did you mean to include the --send|-s flag?)"
 [ ! -v send ] && [ ! -v create ] && [ ! -v remove_old ] && [ -v recursive_send ] && warn "The --recursive|-R flag will be ignored, as sending, creating, or removing a snapshot was not specified. (Did you mean to include the --send|-s, --create-snapshot|-c, or --remove-old|-r flag?)"
 [ -v log ] && [ -v verbose ] && [ -v initial ] && warn "Verbose logging during the initial send may produce big log files. Consider excluding the --log|-l and --log-path|-L flags or the --verbose|-v flag."

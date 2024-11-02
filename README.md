@@ -73,6 +73,7 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
  -s, --send <destination_parent_dataset/path> send source dataset incrementally to specified destination
  -i, --initial                                initially clone source dataset to destination (requires --send)
  -n, --no-resume                              do not create resumable streams and do not resume streams (requires --send)
+ -N, --no-raw                                 do not send a raw stream (don't use zfs send --raw) (requires --send)
  -e, --rsh <'ssh user@server -p22'>           send to remote destination by providing ssh connection string (requires --send)
  -c, --create-snapshot [label]                create a timestamped snapshot on source with an optional label
  -R, --recursive                              send or snapshot dataset recursively along with child datasets (requires --send, --create-snapshot, or --remove-old)
@@ -86,7 +87,7 @@ Usage: zfsbud [OPTION]... SOURCE/DATASET/PATH [SOURCE/DATASET/PATH2...]
 ```
 
 ## ToDo
-- Resume stream dynamically in recursive sends on a per dataset basis. At the moment, during a recursive send operation, if sending of a child dataset was interrupted, that dataset has to be sent again with zfsbud. The script will then resume the sending of that dataset autonomously. A better way of handling that would be just repeating the previous operation and letting zfsbud check if there is a resume token for each recursively sent dataset.
+- Resume stream dynamically in recursive sends on a per-dataset basis. At the moment, during a recursive send operation, if sending of a child dataset was interrupted, that dataset has to be sent again with zfsbud. The script will then resume the sending of that dataset autonomously. A better way of handling that would be just repeating the previous operation and letting zfsbud check if there is a resume token for each recursively sent dataset.
 
 ## Caution
 This script does things. Don't use when tired or drugged.
