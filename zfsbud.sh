@@ -318,7 +318,8 @@ send_initial() {
 }
 
 send_resume() {
-  local destination_resume_parent_dataset=${destination_parent_dataset%/*}
+  # local destination_resume_parent_dataset=${destination_parent_dataset%/*}
+  local destination_resume_parent_dataset=$destination_parent_dataset
 
   if [ ! -v dry_run ]; then
     if [ -v remote_shell ]; then
