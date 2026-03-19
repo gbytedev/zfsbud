@@ -473,11 +473,11 @@ fi
 # Require a correct destination dataset name specified for --send.
 [ -v destination_parent_dataset ] && [[ $destination_parent_dataset == *@* ]] && die "--send|s needs to specify the destination dataset name. (Did you provide a snapshot instead?)."
 
-# Allow only letters, numbers and underscores for the snapshot prefix.
-[[ ! $snapshot_prefix =~ ^[A-Za-z0-9_]+$ ]] && die "The snapshot prefix may only contain letters, digits and underscores."
+# Allow only letters, numbers, dashes and underscores for the snapshot prefix.
+[[ ! $snapshot_prefix =~ ^[A-Za-z0-9_-]+$ ]] && die "The snapshot prefix may only contain letters, digits, dashes and underscores."
 
-# Allow only letters, numbers and underscores for the snapshot label.
-[ -v snapshot_label ] && [[ ! $snapshot_label =~ ^[A-Za-z0-9_]+$ ]] && die "The snapshot label may only contain letters, digits and underscores."
+# Allow only letters, numbers, dashes and underscores for the snapshot label.
+[ -v snapshot_label ] && [[ ! $snapshot_label =~ ^[A-Za-z0-9_-]+$ ]] && die "The snapshot label may only contain letters, digits, dashes and underscores."
 
 datasets=("$@")
 
