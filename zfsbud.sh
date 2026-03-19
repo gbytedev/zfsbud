@@ -101,6 +101,12 @@ kept_timestamps=()
 resume="-s"
 raw="-w"
 
+# Use GNU date on FreeBSD (issue#28)
+if [ "$(uname -s)" = "FreeBSD" ] && [ "$DATECMD" = "date" ] ; then
+  DATECMD=/usr/local/bin/gdate
+  [ -x "$DATECMD" ] || die "GNU date from coreutils must be installed on FreeBSD."
+fi
+
 for arg in "$@"; do
   case $arg in
   -c | --create-snapshot)
